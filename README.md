@@ -9,14 +9,19 @@ Windows 用のシンプルで軽量な CSV エディター（Tauri 2 + TypeScrip
 
 ## 使い方（利用者向け）
 
-[Releases](https://github.com/quon-kobo/CSVSSE/releases/latest) から `CSVSSE.exe` をダウンロードし、好きなフォルダに置いて起動するだけです。
+[Releases](https://github.com/quon-kobo/CSVSSE/releases/latest) から次のどちらかをダウンロードし、好きなフォルダに置いて起動するだけです。
+
+| ファイル | サイズ | こんなときに |
+|---|---|---|
+| `CSVSSE.exe`（通常版） | 約 4MB | 普通の Windows 10 / 11 の PC（ほとんどの場合はこちら） |
+| `CSVSSE-<バージョン>-webview2-x64.zip`（WebView2 同梱版） | 約 300MB | 通常版が起動しない PC（Windows 10 IoT / LTSC など、WebView2 が入っていない PC）。zip を展開し、中の `CSVSSE.exe` を起動。`webview2` フォルダは exe と同じ場所に置いたままにしてください |
 
 > 初回起動時に Windows の「PC を保護しました」（SmartScreen）が出た場合は、「詳細情報」→「実行」を選んでください（コード署名をしていないため表示されます）。
 
 - CSV ファイルを開く：exe に CSV をドラッグ＆ドロップ、ウィンドウにドロップ、または Ctrl+O
 - 設定（ウィンドウの大きさ、1行目の固定、ズーム）は exe と同じフォルダの `csvsse.settings.json` に保存されます
 - CSV をダブルクリックで開けるようにするには：「情報」→「ファイルの関連付け…」→「登録する」→ 開いた画面で CSVSSE を選んで「常に使う」。CSV ファイルが専用のアイコンで表示されます（自分のユーザーだけの設定で、管理者権限は不要。「登録を解除」で元に戻せます）
-- 動作には Microsoft Edge WebView2 ランタイムが必要です（Windows 10/11 には標準で入っています）
+- 通常版の動作には Microsoft Edge WebView2 ランタイムが必要です（Windows 10/11 には標準で入っています）。同梱版は不要です
 
 ### 主なショートカット
 
@@ -48,6 +53,10 @@ Windows 用のシンプルで軽量な CSV エディター（Tauri 2 + TypeScrip
 npm install
 npm run app         # 開発モードで起動
 npm run build:exe   # ポータブル exe を作る → src-tauri\target\release\CSVSSE.exe
+
+# WebView2 同梱版の zip を作る → release-out\CSVSSE-<バージョン>-webview2-x64.zip
+# （Microsoft の WebView2 ページの「Fixed Version」から x64 の .cab を入手し、expand.exe で展開したフォルダを指定）
+npm run build:webview2 -- -Runtime "C:\path\to\Microsoft.WebView2.FixedVersionRuntime.<版>.x64"
 npm run icon        # src-tauri\app-icon.svg からアプリのアイコンを再生成
 npm run icon:file   # src-tauri\file-icon.svg から CSV ファイル用アイコン（csv-file.ico）を再生成
 ```
