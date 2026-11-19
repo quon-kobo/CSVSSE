@@ -11,9 +11,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "app": "tauri dev",
-    "build:exe": "tauri build --no-bundle",
-    "build:webview2": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-webview2.ps1",
-    "icon": "tauri icon src-tauri/app-icon.svg",
+    "build:exe": "tauri build --no-bundle",    "icon": "tauri icon src-tauri/app-icon.svg",
     "icon:file": "tauri icon src-tauri/file-icon.svg -o .icon-tmp && node -e \"require('fs').copyFileSync('.icon-tmp/icon.ico','src-tauri/icons/csv-file.ico');require('fs').rmSync('.icon-tmp',{recursive:true})\""
   },
   "dependencies": {

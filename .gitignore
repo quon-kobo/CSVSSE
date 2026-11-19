@@ -12,12 +12,6 @@ dist
 dist-ssr
 *.local
 
-# Release build output (bundled WebView2 edition) and downloaded runtimes
-release-out/
-src-tauri/webview2/
-Microsoft.WebView2.FixedVersionRuntime.*/
-*.cab
-
 # Local tool settings
 .claude/
 
