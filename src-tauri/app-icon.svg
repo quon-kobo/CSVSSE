@@ -10,13 +10,16 @@
   </g>
   <!-- Name band -->
   <path d="M16 156H240V202a38 38 0 0 1-38 38H54a38 38 0 0 1-38-38Z" fill="#13804a"/>
-  <!-- "CSVSSE" (drawn as strokes so it does not depend on installed fonts) -->
-  <g fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
-    <path transform="translate(29 176)" d="M23 7A12 20.5 0 1 0 23 37"/>
-    <path transform="translate(63 176)" d="M23 7C20 2 16.5 0 12.5 0C6 0 2 4 2 10.5C2 17 7.5 19 12.5 21C19.5 23 24 26 24 33C24 40 19 44 12.5 44C7 44 3 41 1 37"/>
-    <path transform="translate(97 176)" d="M1 1L12.5 43L24 1"/>
-    <path transform="translate(131 176)" d="M23 7C20 2 16.5 0 12.5 0C6 0 2 4 2 10.5C2 17 7.5 19 12.5 21C19.5 23 24 26 24 33C24 40 19 44 12.5 44C7 44 3 41 1 37"/>
-    <path transform="translate(165 176)" d="M23 7C20 2 16.5 0 12.5 0C6 0 2 4 2 10.5C2 17 7.5 19 12.5 21C19.5 23 24 26 24 33C24 40 19 44 12.5 44C7 44 3 41 1 37"/>
-    <path transform="translate(201 176)" d="M22 1H3V43H22M3 22H19"/>
+  <!-- "CSVSSE" (drawn as strokes so it does not depend on installed fonts).
+       Letters are laid out on a 38-unit pitch, then scaled to 0.66 and centred in the band
+       so the name has room around it. -->
+  <g fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"
+     transform="translate(128 197) scale(0.66) translate(-107.8 -22)">
+    <path d="M23 7A12 20.5 0 1 0 23 37"/>
+    <path transform="translate(38 0)" d="M23 7C20 2 16.5 0 12.5 0C6 0 2 4 2 10.5C2 17 7.5 19 12.5 21C19.5 23 24 26 24 33C24 40 19 44 12.5 44C7 44 3 41 1 37"/>
+    <path transform="translate(76 0)" d="M1 1L12.5 43L24 1"/>
+    <path transform="translate(114 0)" d="M23 7C20 2 16.5 0 12.5 0C6 0 2 4 2 10.5C2 17 7.5 19 12.5 21C19.5 23 24 26 24 33C24 40 19 44 12.5 44C7 44 3 41 1 37"/>
+    <path transform="translate(152 0)" d="M23 7C20 2 16.5 0 12.5 0C6 0 2 4 2 10.5C2 17 7.5 19 12.5 21C19.5 23 24 26 24 33C24 40 19 44 12.5 44C7 44 3 41 1 37"/>
+    <path transform="translate(190 0)" d="M22 1H3V43H22M3 22H19"/>
   </g>
 </svg>
