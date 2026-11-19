@@ -10,8 +10,9 @@ import { IN_TAURI } from "./ipc";
 import { alertMsg, ask } from "./ui";
 
 const REPO = "https://github.com/quon-kobo/CSVSSE";
-/** English README is the repository's front page; Japanese users get README.ja.md. */
-const homepage = () => (lang() === "ja" ? `${REPO}/blob/main/README.ja.md` : REPO);
+/** Product page on the QUON KOBO site: English is the default page, Japanese is under ja/. */
+const SITE = "https://quon-kobo.com/csvsse/";
+const homepage = () => (lang() === "ja" ? `${SITE}ja/index.html` : `${SITE}index.html`);
 
 function open(url: string) {
   if (IN_TAURI) void openUrl(url);
@@ -48,7 +49,7 @@ export async function showAbout(): Promise<void> {
   };
   row(t.author, "© 2026 QUON KOBO");
   row(t.license, t.licenseValue);
-  const link = el("a", "about-link", "github.com/quon-kobo/CSVSSE");
+  const link = el("a", "about-link", "quon-kobo.com/csvsse");
   link.href = homepage();
   link.addEventListener("click", (e) => {
     e.preventDefault();

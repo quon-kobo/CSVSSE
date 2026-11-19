@@ -747,8 +747,26 @@ async function setupTauri() {
   });
 }
 
-/** Browser preview (npm run dev without Tauri): sample data so the grid can be tried out. */
-function initBrowserPreview() {
+/**
+ * Browser preview (npm run dev without Tauri): sample data so the grid can be tried out.
+ * `?csv=<url>` loads that CSV instead (used for the website's screenshots).
+ */
+async function initBrowserPreview() {
+  const csvUrl = new URLSearchParams(location.search).get("csv");
+  if (csvUrl) {
+    try {
+      const text = await (await fetch(csvUrl)).text();
+      const rows = parseCsv(text, detectDelimiter(text, csvUrl));
+      doc.load(rows, Math.max(0, ...rows.map((r) => r.length)));
+      state.path = csvUrl.split("/").pop() ?? csvUrl;
+      grid.reset();
+      refreshAll();
+      grid.focus();
+      return;
+    } catch (e) {
+      console.error(e);
+    }
+  }
   const sample = [
     "社員番号,氏名,部署,入社日,売上,メモ",
     '1001,山田 太郎,営業部,2019/04/01,"1,250,000",',
@@ -774,4 +792,4 @@ if (!IN_TAURI) {
 applyLanguage();
 
 if (IN_TAURI) void initTauri();
-else initBrowserPreview();
+else void initBrowserPreview();

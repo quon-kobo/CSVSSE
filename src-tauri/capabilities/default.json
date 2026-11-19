@@ -14,7 +14,7 @@
     "clipboard-manager:allow-write-text",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://github.com/quon-kobo/*" }]
+      "allow": [{ "url": "https://github.com/quon-kobo/*" }, { "url": "https://quon-kobo.com/*" }]
     }
   ]
 }
