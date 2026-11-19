@@ -1,79 +1,79 @@
 # CSVSSE
 
-**English** | [日本語](README.ja.md)
+**日本語** | [English](README.en.md)
 
-A simple, lightweight CSV editor for Windows (Tauri 2 + TypeScript).
+Windows 用のシンプルで軽量な CSV エディター（Tauri 2 + TypeScript）。
 
-- Portable: a single exe, no installation
-- Excel-like editing: cell and range selection, Ctrl+Arrow, F2 to edit, copy & paste with Excel, fill handle
-- Detects the encoding (UTF-8 / UTF-8 with BOM / Shift_JIS / UTF-16) and keeps the original encoding and line endings when saving
-- Never rewrites your values (no Excel-style conversions such as `0012` becoming `12` or dates changing format)
-- Stays fast with hundreds of thousands to millions of rows — only the visible rows are drawn
-- English / Japanese UI, chosen automatically from the Windows display language
+- exe 1 個で動くポータブルアプリ（インストール不要）
+- Excel ライクな操作（セル選択、範囲選択、Ctrl+矢印、F2 編集、Excel とのコピー＆ペースト、オートフィル）
+- 文字コード自動判定（UTF-8 / UTF-8 BOM / Shift_JIS / UTF-16）、保存時に元の文字コード・改行コードを維持
+- 値を勝手に書き換えない（`0012` が `12` になる、日付の形が変わる、といった Excel のような変換をしない）
+- 数十万〜数百万行の CSV でも、表示中の行だけを描画するので軽快に動く
+- 日本語 / 英語の画面（Windows の言語に合わせて自動で切り替え）
 
-## Getting started
+## 使い方（利用者向け）
 
-Download `CSVSSE.exe` from [Releases](https://github.com/quon-kobo/CSVSSE/releases/latest), put it in any folder, and run it.
+[Releases](https://github.com/quon-kobo/CSVSSE/releases/latest) から `CSVSSE.exe` をダウンロードし、好きなフォルダに置いて起動するだけです。
 
-> If Windows shows "Windows protected your PC" (SmartScreen) the first time, click "More info" → "Run anyway". It appears because the exe is not code-signed.
+> 初回起動時に Windows の「PC を保護しました」（SmartScreen）が出た場合は、「詳細情報」→「実行」を選んでください（コード署名をしていないため表示されます）。
 
-- Open a CSV file: drop it on the exe or the window, or press Ctrl+O
-- **Settings** (toolbar, top right, or Ctrl+,)
-  - **Language**: Auto (Japanese on Japanese Windows, English otherwise) / 日本語 / English
-  - **File association**: click "Register", then choose CSVSSE and click "Always" in the window that opens. CSV / TSV files then open in CSVSSE on double-click and get their own icon. This is a per-user setting, needs no admin rights, and "Unregister" undoes it.
-- Settings (language, window size, frozen top row, zoom) are stored in `csvsse.settings.json` next to the exe
-- Requires the Microsoft Edge WebView2 Runtime, which is included with Windows 10 / 11
+- CSV ファイルを開く：exe に CSV をドラッグ＆ドロップ、ウィンドウにドロップ、または Ctrl+O
+- **設定**（ツールバー右端の「設定」、Ctrl+,）
+  - **言語**：自動（Windows が日本語なら日本語、それ以外は英語）／日本語／English
+  - **ファイルの関連付け**：「登録する」→ 開いた画面で CSVSSE を選んで「常に使う」。CSV / TSV ファイルをダブルクリックで開けるようになり、専用のアイコンで表示されます（自分のユーザーだけの設定で、管理者権限は不要。「登録を解除」で元に戻せます）
+- 設定（言語、ウィンドウの大きさ、1行目の固定、ズーム）は exe と同じフォルダの `csvsse.settings.json` に保存されます
+- 動作には Microsoft Edge WebView2 ランタイムが必要です（Windows 10/11 には標準で入っています）
 
-### Keyboard shortcuts
+### 主なショートカット
 
-| Action | Keys |
+| 操作 | キー |
 |---|---|
-| Open / Save / Save as | Ctrl+O / Ctrl+S / Ctrl+Shift+S |
-| New / New window | Ctrl+N / Ctrl+Shift+N |
-| Undo / Redo | Ctrl+Z / Ctrl+Y |
-| Copy / Cut / Paste | Ctrl+C / Ctrl+X / Ctrl+V |
-| Edit cell / New line in a cell | F2 or double-click / Alt+Enter |
-| Fill the selection with the typed value | Ctrl+Enter |
-| Jump to the edge of the data | Ctrl+Arrow (add Shift to select) |
-| First / last cell | Ctrl+Home / Ctrl+End |
-| Select column / row | Ctrl+Space / Shift+Space |
-| Insert / delete rows | Ctrl++ / Ctrl+- |
-| Find / Replace | Ctrl+F / Ctrl+H (find next: F3) |
-| Freeze top row | F12 |
-| Settings / About | Ctrl+, / F1 |
-| Fill handle | Drag the ■ at the bottom-right of the selection. Works like Excel: a single number is copied and Ctrl+drag counts up 1, 2, 3…; selecting 1, 2, 3 continues with 4, 5, 6…. The values are previewed while dragging, Ctrl switches mode on the fly, Esc cancels. Double-click fills down to the last row of the neighbouring column. |
-| Zoom | Ctrl+mouse wheel |
+| 開く / 上書き保存 / 名前を付けて保存 | Ctrl+O / Ctrl+S / Ctrl+Shift+S |
+| 新規 / 新しいウィンドウ | Ctrl+N / Ctrl+Shift+N |
+| 元に戻す / やり直し | Ctrl+Z / Ctrl+Y |
+| コピー / 切り取り / 貼り付け | Ctrl+C / Ctrl+X / Ctrl+V |
+| セルを編集 / セル内で改行 | F2・ダブルクリック / Alt+Enter |
+| 選択範囲に一括入力 | 入力後 Ctrl+Enter |
+| データの端まで移動 | Ctrl+矢印（Shift で範囲選択） |
+| 先頭 / 最後のセル | Ctrl+Home / Ctrl+End |
+| 列全体 / 行全体を選択 | Ctrl+Space / Shift+Space |
+| 行の挿入 / 削除 | Ctrl++ / Ctrl+- |
+| 検索 / 置換 | Ctrl+F / Ctrl+H（次を検索 F3） |
+| 1行目を固定 | F12 |
+| 設定 / このアプリについて | Ctrl+, / F1 |
+| オートフィル | 選択範囲の右下の ■ をドラッグ（Excel と同じ：数値1つはコピー、Ctrl+ドラッグで 1,2,3…。1,2,3 を選んで引っ張ると 4,5,6…。ドラッグ中は入る値がプレビューされ、Ctrl でその場で切り替え、Esc で中止。ダブルクリックで隣の列の最終行まで） |
+| ズーム | Ctrl+マウスホイール |
 
-Click the encoding, delimiter or line-ending indicator in the status bar to change them.
+文字コード・区切り文字・改行コードは、画面右下のステータスバーをクリックして変更できます。
 
-## Development
+## 開発
 
-Requirements: Rust, Node.js, Visual Studio Build Tools (C++)
+必要なもの：Rust、Node.js、Visual Studio Build Tools（C++）
 
 ```powershell
 npm install
-npm run app         # run in development mode
-npm run build:exe   # build the portable exe -> src-tauri\target\release\CSVSSE.exe
-npm run icon        # regenerate the app icon from src-tauri\app-icon.svg
-npm run icon:file   # regenerate the CSV file icon (csv-file.ico) from src-tauri\file-icon.svg
+npm run app         # 開発モードで起動
+npm run build:exe   # ポータブル exe を作る → src-tauri\target\release\CSVSSE.exe
+npm run icon        # src-tauri\app-icon.svg からアプリのアイコンを再生成
+npm run icon:file   # src-tauri\file-icon.svg から CSV ファイル用アイコン（csv-file.ico）を再生成
 ```
 
-`npm run dev` alone opens the UI in a browser with sample data (saving is disabled). Add `?lang=en` or `?lang=ja` to pick the language.
+`npm run dev` だけを実行すると、ブラウザーでサンプルデータを使って画面を確認できます（ファイルの保存はできません）。`?lang=en` / `?lang=ja` を付けると言語を切り替えられます。
 
-### Project layout
+### 構成
 
-| File | Purpose |
+| ファイル | 役割 |
 |---|---|
-| `src-tauri/src/lib.rs` | File I/O, encoding detection and conversion, settings, OS language |
-| `src-tauri/src/assoc.rs` | File association (per-user registry) |
-| `src/grid.ts` | Canvas-rendered grid (scrolling, selection, editing, clipboard) |
-| `src/doc.ts` | Data model and undo / redo history |
-| `src/csv.ts` | CSV parsing and writing, delimiter and line-ending detection |
-| `src/fill.ts` | Fill handle series logic |
-| `src/i18n.ts` | UI text (English / Japanese) |
-| `src/about.ts` | Settings and About dialogs |
-| `src/main.ts` | App shell (toolbar, find, status bar, file operations) |
+| `src-tauri/src/lib.rs` | ファイル読み書き、文字コード判定・変換、設定の保存、OS の言語の取得 |
+| `src-tauri/src/assoc.rs` | ファイルの関連付け（HKCU） |
+| `src/grid.ts` | Canvas 描画のグリッド（スクロール、選択、編集、クリップボード） |
+| `src/doc.ts` | データと元に戻す / やり直しの履歴 |
+| `src/csv.ts` | CSV の解析と書き出し、区切り文字・改行の判定 |
+| `src/fill.ts` | オートフィル（連続データ）の計算 |
+| `src/i18n.ts` | 画面の文言（日本語 / 英語） |
+| `src/about.ts` | 「設定」と「このアプリについて」の画面 |
+| `src/main.ts` | 画面全体（ツールバー、検索、ステータスバー、ファイル操作） |
 
-## License
+## ライセンス
 
 [MIT License](LICENSE) © 2026 QUON KOBO
