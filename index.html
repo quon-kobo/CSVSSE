@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <title>CSVSSE</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+  <body>
+    <div id="app">
+      <header id="toolbar" role="toolbar" aria-label="ツールバー">
+        <button class="tb" data-cmd="new" title="新規作成 (Ctrl+N)">
+          <svg viewBox="0 0 16 16"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5z" /><path d="M9 1.5V5h3.5" /><path d="M8.25 7.5v4.5M6 9.75h4.5" /></svg>
+          <span>新規</span>
+        </button>
+        <button class="tb" data-cmd="open" title="開く (Ctrl+O)">
+          <svg viewBox="0 0 16 16"><path d="M1.5 3.5h4.25l1.5 1.5h7.25v8.5h-13z" /><path d="M1.5 7h13" /></svg>
+          <span>開く</span>
+        </button>
+        <button class="tb" data-cmd="save" title="上書き保存 (Ctrl+S)">
+          <svg viewBox="0 0 16 16"><path d="M2.5 2.5h9l2 2v9h-11z" /><path d="M5 2.5v3h5.5v-3" /><path d="M5 13.5V9.5h6v4" /></svg>
+          <span>保存</span>
+        </button>
+        <div class="tb-sep"></div>
+        <button class="tb" data-cmd="undo" id="btn-undo" title="元に戻す (Ctrl+Z)">
+          <svg viewBox="0 0 16 16"><path d="M5.5 2.5 2.5 5.5l3 3" /><path d="M2.5 5.5h7a4 4 0 0 1 0 8H7" /></svg>
+          <span>元に戻す</span>
+        </button>
+        <button class="tb" data-cmd="redo" id="btn-redo" title="やり直し (Ctrl+Y)">
+          <svg viewBox="0 0 16 16"><path d="m10.5 2.5 3 3-3 3" /><path d="M13.5 5.5h-7a4 4 0 0 0 0 8H9" /></svg>
+          <span>やり直し</span>
+        </button>
+        <div class="tb-sep"></div>
+        <button class="tb" data-cmd="find" title="検索と置換 (Ctrl+F)">
+          <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3.5 3.5" /></svg>
+          <span>検索</span>
+        </button>
+        <button class="tb" data-cmd="replace" title="置換 (Ctrl+H)">
+          <svg viewBox="0 0 16 16"><path d="M2.5 5.5h9l-2.5-2.5" /><path d="M13.5 10.5h-9l2.5 2.5" /></svg>
+          <span>置換</span>
+        </button>
+        <button class="tb toggle" data-cmd="freeze" id="btn-freeze" aria-pressed="false" title="1行目（見出し）を固定して表示">
+          <svg viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="11" rx="1.5" /><path d="M2 6.5h12M6.5 6.5v7M10 6.5v7" /><path class="fill" d="M2.75 3.25h10.5v2.5H2.75z" /></svg>
+          <span>1行目を固定</span>
+        </button>
+      </header>
+
+      <div id="fbar">
+        <input id="namebox" spellcheck="false" autocomplete="off" aria-label="セル番地" title="セル番地（例: B12 と入力して Enter で移動）" />
+        <div class="fx" aria-hidden="true">fx</div>
+        <textarea id="formula" rows="1" spellcheck="false" aria-label="セルの内容"></textarea>
+      </div>
+
+      <main id="grid"></main>
+
+      <footer id="status">
+        <span id="st-msg" role="status"></span>
+        <span class="st-spacer"></span>
+        <span id="st-sel"></span>
+        <span id="st-size"></span>
+        <button class="st-btn" id="st-delim" title="区切り文字"></button>
+        <button class="st-btn" id="st-nl" title="改行コード"></button>
+        <button class="st-btn" id="st-enc" title="文字コード"></button>
+        <span id="st-zoom"></span>
+      </footer>
+
+      <div id="findbar" hidden>
+        <div class="find-row">
+          <button class="icon-btn" id="find-expand" title="置換の表示/非表示" aria-expanded="false">
+            <svg viewBox="0 0 16 16"><path d="m6 4 4 4-4 4" /></svg>
+          </button>
+          <input id="find-q" placeholder="検索" spellcheck="false" autocomplete="off" aria-label="検索する文字列" />
+          <span id="find-count"></span>
+          <button class="icon-btn" id="find-prev" title="前を検索 (Shift+Enter)">
+            <svg viewBox="0 0 16 16"><path d="m4 10 4-4 4 4" /></svg>
+          </button>
+          <button class="icon-btn" id="find-next" title="次を検索 (Enter)">
+            <svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg>
+          </button>
+          <button class="icon-btn" id="find-close" title="閉じる (Esc)">
+            <svg viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8" /></svg>
+          </button>
+        </div>
+        <div class="find-row" id="rep-row" hidden>
+          <span class="find-indent"></span>
+          <input id="rep-q" placeholder="置換後の文字列" spellcheck="false" autocomplete="off" aria-label="置換後の文字列" />
+          <button class="btn small" id="rep-one">置換</button>
+          <button class="btn small" id="rep-all">すべて置換</button>
+        </div>
+      </div>
+
+      <div id="drop" hidden><div>ここにファイルをドロップして開く</div></div>
+      <div id="busy" hidden><div class="busy-box"><div class="spinner"></div><span class="busy-text"></span></div></div>
+    </div>
+  </body>
+</html>
