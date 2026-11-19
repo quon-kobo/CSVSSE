@@ -12,6 +12,9 @@ use tauri::{
     ipc::{InvokeBody, Request, Response},
 };
 
+#[cfg(windows)]
+mod assoc;
+
 /// Settings live next to the exe so the app stays portable.
 const SETTINGS_FILE: &str = "csvsse.settings.json";
 const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
@@ -300,6 +303,35 @@ fn new_window(path: Option<String>) -> Result<(), String> {
     cmd.spawn().map(|_| ()).map_err(|e| format!("新しいウィンドウを開けませんでした。\n{e}"))
 }
 
+// ---------------------------------------------------------------- file association
+
+#[tauri::command]
+fn association_status() -> bool {
+    #[cfg(windows)]
+    return assoc::status();
+    #[cfg(not(windows))]
+    false
+}
+
+#[tauri::command]
+fn set_association(enable: bool) -> Result<(), String> {
+    #[cfg(windows)]
+    return if enable { assoc::register() } else { assoc::unregister() };
+    #[cfg(not(windows))]
+    {
+        let _ = enable;
+        Err("Windows 専用の機能です".into())
+    }
+}
+
+#[tauri::command]
+fn choose_default_app() -> Result<(), String> {
+    #[cfg(windows)]
+    return assoc::choose_default();
+    #[cfg(not(windows))]
+    Err("Windows 専用の機能です".into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -371,7 +403,10 @@ pub fn run() {
             initial_file,
             new_window,
             load_settings,
-            save_settings
+            save_settings,
+            association_status,
+            set_association,
+            choose_default_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

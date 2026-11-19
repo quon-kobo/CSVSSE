@@ -1,10 +1,12 @@
 // "このアプリについて" (About) dialog.
 
+import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import iconUrl from "../src-tauri/app-icon.svg";
+import fileIconUrl from "../src-tauri/file-icon.svg";
 import pkg from "../package.json";
 import { IN_TAURI } from "./ipc";
-import { ask } from "./ui";
+import { alertMsg, ask } from "./ui";
 
 const REPO = "https://github.com/quon-kobo/CSVSSE";
 
@@ -53,6 +55,7 @@ export async function showAbout(): Promise<void> {
   const v = await ask(
     box,
     [
+      { label: "ファイルの関連付け…", value: "assoc" },
       { label: "最新版を確認", value: "latest" },
       { label: "閉じる", value: "close", primary: true },
     ],
@@ -60,4 +63,65 @@ export async function showAbout(): Promise<void> {
     "このアプリについて",
   );
   if (v === "latest") open(`${REPO}/releases/latest`);
+  else if (v === "assoc") await showAssociation();
+}
+
+/** Lets the user register CSVSSE for .csv / .tsv files (per-user, reversible). */
+export async function showAssociation(): Promise<void> {
+  if (!IN_TAURI) {
+    await alertMsg("ファイルの関連付けは、アプリ版（CSVSSE.exe）でのみ設定できます。");
+    return;
+  }
+  const registered = await invoke<boolean>("association_status");
+
+  const box = el("div", "assoc");
+  const head = el("div", "about-head");
+  const img = el("img", "about-icon");
+  img.src = fileIconUrl;
+  img.alt = "";
+  const txt = el("div", "");
+  txt.append(
+    el("div", "assoc-title", "CSV / TSV ファイルを CSVSSE で開く"),
+    el("div", registered ? "assoc-state on" : "assoc-state", registered ? "● 登録済み" : "○ 未登録"),
+  );
+  head.append(img, txt);
+  const steps = el("ol", "assoc-steps");
+  steps.append(
+    el("li", "", "「登録する」で、Windows に CSVSSE を登録します（管理者権限は不要）"),
+    el("li", "", "続けて開く画面で「CSVSSE」を選び、「常に使う」を押します"),
+    el("li", "", "CSV ファイルが左のアイコンで表示され、ダブルクリックで CSVSSE が開きます"),
+  );
+  const note = el(
+    "p",
+    "assoc-note",
+    "exe を別のフォルダに移動したときは、もう一度「登録する」を押してください。「登録を解除」で元に戻せます。",
+  );
+  box.append(head, steps, note);
+
+  const buttons = registered
+    ? [
+        { label: "登録を解除", value: "off" },
+        { label: "既定のアプリを選ぶ", value: "choose" },
+        { label: "閉じる", value: "close", primary: true },
+      ]
+    : [
+        { label: "閉じる", value: "close" },
+        { label: "登録する", value: "on", primary: true },
+      ];
+  const v = await ask(box, buttons, "close", "ファイルの関連付け");
+  try {
+    if (v === "on") {
+      await invoke("set_association", { enable: true });
+      await invoke("choose_default_app");
+    } else if (v === "choose") {
+      await invoke("choose_default_app");
+    } else if (v === "off") {
+      await invoke("set_association", { enable: false });
+      await alertMsg(
+        "登録を解除しました。\n\nCSV ファイルを開くアプリは、Windows の「設定」→「アプリ」→「既定のアプリ」で選び直せます。",
+      );
+    }
+  } catch (e) {
+    await alertMsg(String(e));
+  }
 }

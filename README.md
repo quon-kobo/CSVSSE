@@ -15,6 +15,7 @@ Windows 用のシンプルで軽量な CSV エディター（Tauri 2 + TypeScrip
 
 - CSV ファイルを開く：exe に CSV をドラッグ＆ドロップ、ウィンドウにドロップ、または Ctrl+O
 - 設定（ウィンドウの大きさ、1行目の固定、ズーム）は exe と同じフォルダの `csvsse.settings.json` に保存されます
+- CSV をダブルクリックで開けるようにするには：「情報」→「ファイルの関連付け…」→「登録する」→ 開いた画面で CSVSSE を選んで「常に使う」。CSV ファイルが専用のアイコンで表示されます（自分のユーザーだけの設定で、管理者権限は不要。「登録を解除」で元に戻せます）
 - 動作には Microsoft Edge WebView2 ランタイムが必要です（Windows 10/11 には標準で入っています）
 
 ### 主なショートカット
@@ -47,7 +48,8 @@ Windows 用のシンプルで軽量な CSV エディター（Tauri 2 + TypeScrip
 npm install
 npm run app         # 開発モードで起動
 npm run build:exe   # ポータブル exe を作る → src-tauri\target\release\CSVSSE.exe
-npm run icon        # src-tauri\app-icon.svg からアイコンを再生成
+npm run icon        # src-tauri\app-icon.svg からアプリのアイコンを再生成
+npm run icon:file   # src-tauri\file-icon.svg から CSV ファイル用アイコン（csv-file.ico）を再生成
 ```
 
 `npm run dev` だけを実行すると、ブラウザーでサンプルデータを使って画面を確認できます（ファイルの保存はできません）。

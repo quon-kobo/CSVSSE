@@ -597,6 +597,30 @@ svg {
   text-decoration: underline;
 }
 
+.assoc-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.assoc-state {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.assoc-state.on {
+  color: var(--accent);
+}
+.assoc-steps {
+  margin: 14px 0 8px;
+  padding-left: 20px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.assoc-note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-2);
+}
+
 /* ---------------------------------------------------------------- overlays */
 
 #drop {

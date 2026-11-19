@@ -1,6 +1,6 @@
 [package]
 name = "csvsse"
-version = "0.1.2"
+version = "0.1.3"
 description = "CSVSSE - simple CSV editor"
 authors = ["QUON KOBO"]
 license = "MIT"
@@ -19,6 +19,10 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-opener = "2"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.56"
+windows-sys = { version = "0.61", features = ["Win32_UI_Shell"] }
 serde_json = "1"
 encoding_rs = "0.8"
 chardetng = "0.1"

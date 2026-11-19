@@ -1,21 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 256 256">
-  <!-- Page -->
-  <path d="M62 20H160L212 72V224a12 12 0 0 1-12 12H62a12 12 0 0 1-12-12V32a12 12 0 0 1 12-12Z"
-        fill="#ffffff" stroke="#9e9e9e" stroke-width="4" stroke-linejoin="round"/>
-  <!-- Folded corner -->
-  <path d="M160 20V60a12 12 0 0 0 12 12H212Z" fill="#e3e3e3" stroke="#9e9e9e" stroke-width="4" stroke-linejoin="round"/>
-  <!-- Table on the page -->
-  <rect x="74" y="88" width="122" height="26" fill="#cfe9d9"/>
+  <!-- Tile -->
+  <rect x="14" y="14" width="228" height="228" rx="40" fill="#ffffff" stroke="#9e9e9e" stroke-width="4"/>
+  <!-- Table -->
+  <rect x="42" y="40" width="172" height="24" fill="#cfe9d9"/>
   <g stroke="#8cc7a3" stroke-width="4" fill="none">
-    <rect x="74" y="88" width="122" height="128" rx="2"/>
-    <path d="M74 114H196M74 140H196M74 166H196M74 192H196"/>
-    <path d="M115 88V216M156 88V216"/>
+    <rect x="42" y="40" width="172" height="104" rx="2"/>
+    <path d="M42 64H214M42 90H214M42 116H214"/>
+    <path d="M99 40V144M157 40V144"/>
   </g>
-  <!-- CSV badge -->
-  <rect x="14" y="124" width="152" height="94" rx="14" fill="#13804a"/>
-  <g fill="none" stroke="#ffffff" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M61 154A16 22 0 1 0 61 186"/>
-    <path d="M105 156C102 150 97 148 91 148C83 148 77 152 77 159C77 166 83 168 91 170C99 172 105 175 105 182C105 189 99 192 91 192C84 192 79 189 76 184"/>
-    <path d="M121 149L136 191L151 149"/>
+  <!-- Name band -->
+  <path d="M16 156H240V202a38 38 0 0 1-38 38H54a38 38 0 0 1-38-38Z" fill="#13804a"/>
+  <!-- "CSVSSE" (drawn as strokes so it does not depend on installed fonts) -->
+  <g fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path transform="translate(29 176)" d="M23 7A12 20.5 0 1 0 23 37"/>
+    <path transform="translate(63 176)" d="M23 7C20 2 16.5 0 12.5 0C6 0 2 4 2 10.5C2 17 7.5 19 12.5 21C19.5 23 24 26 24 33C24 40 19 44 12.5 44C7 44 3 41 1 37"/>
+    <path transform="translate(97 176)" d="M1 1L12.5 43L24 1"/>
+    <path transform="translate(131 176)" d="M23 7C20 2 16.5 0 12.5 0C6 0 2 4 2 10.5C2 17 7.5 19 12.5 21C19.5 23 24 26 24 33C24 40 19 44 12.5 44C7 44 3 41 1 37"/>
+    <path transform="translate(165 176)" d="M23 7C20 2 16.5 0 12.5 0C6 0 2 4 2 10.5C2 17 7.5 19 12.5 21C19.5 23 24 26 24 33C24 40 19 44 12.5 44C7 44 3 41 1 37"/>
+    <path transform="translate(201 176)" d="M22 1H3V43H22M3 22H19"/>
   </g>
 </svg>
