@@ -7,6 +7,7 @@ import { Doc } from "./doc";
 import { Grid, colName, isNumeric, parseRef } from "./grid";
 import { detectDelimiter, detectNewline, parseCsv, serializeCsv } from "./csv";
 import { IN_TAURI, readFile, writeFile } from "./ipc";
+import { showAbout } from "./about";
 import { alertMsg, ask, hideBusy, isModalOpen, showBusy, showMenu, yieldToPaint, type MenuItem } from "./ui";
 
 const APP = "CSVSSE";
@@ -596,6 +597,7 @@ const commands: Record<string, () => void> = {
   find: () => openFind(false),
   replace: () => openFind(true),
   freeze: toggleFreeze,
+  about: () => void showAbout(),
 };
 
 document.querySelectorAll<HTMLButtonElement>("[data-cmd]").forEach((b) => {
@@ -622,6 +624,7 @@ window.addEventListener(
     else if (ctrl && !e.altKey && k === "h") openFind(true);
     else if (e.key === "F3") findNext(e.shiftKey ? -1 : 1);
     else if (e.key === "F12") toggleFreeze();
+    else if (e.key === "F1") void showAbout();
     // Swallow browser shortcuts that make no sense in a desktop app.
     else if (e.key === "F5" || (ctrl && (k === "r" || k === "p" || k === "g" || k === "u" || k === "j"))) {
       /* ignore */

@@ -112,7 +112,12 @@ export interface DialogButton {
 }
 
 /** Modal dialog; resolves with the clicked button's value (or `cancelValue` on Esc). */
-export function ask(message: string, buttons: DialogButton[], cancelValue = "cancel", title = "CSVSSE"): Promise<string> {
+export function ask(
+  message: string | Node,
+  buttons: DialogButton[],
+  cancelValue = "cancel",
+  title = "CSVSSE",
+): Promise<string> {
   closeMenu();
   return new Promise((resolve) => {
     modalCount++;
@@ -128,7 +133,7 @@ export function ask(message: string, buttons: DialogButton[], cancelValue = "can
     h.textContent = title;
     const msg = document.createElement("div");
     msg.className = "modal-msg";
-    msg.textContent = message;
+    msg.append(message);
     const row = document.createElement("div");
     row.className = "modal-buttons";
     let primary: HTMLButtonElement | null = null;

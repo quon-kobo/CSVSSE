@@ -144,6 +144,12 @@ svg {
 .tb.toggle[aria-pressed="true"] .fill {
   opacity: 0.35;
 }
+.tb-spacer {
+  flex: 1;
+}
+.tb .dot {
+  fill: currentColor;
+}
 .tb-sep {
   width: 1px;
   height: 20px;
@@ -541,6 +547,54 @@ svg {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 20px;
+}
+
+/* ---------------------------------------------------------------- about */
+
+.about-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.about-icon {
+  width: 56px;
+  height: 56px;
+  flex: none;
+}
+.about-name {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.about-version {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.about-desc {
+  margin: 14px 0 10px;
+}
+.about-info {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--app-bg);
+  border-radius: var(--radius);
+  font-size: 12px;
+}
+.about-info dt {
+  color: var(--text-2);
+}
+.about-info dd {
+  margin: 0;
+}
+.about-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+.about-link:hover {
+  text-decoration: underline;
 }
 
 /* ---------------------------------------------------------------- overlays */
