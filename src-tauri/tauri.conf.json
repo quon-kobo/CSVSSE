@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "CSVSSE",
   "mainBinaryName": "CSVSSE",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "com.csvsse.editor",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -31,8 +31,8 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "publisher": "QUON-KOBO",
-    "copyright": "Copyright (c) 2026 QUON-KOBO",
+    "publisher": "QUON KOBO",
+    "copyright": "Copyright (c) 2026 QUON KOBO",
     "shortDescription": "シンプルな CSV エディター",
     "icon": [
       "icons/32x32.png",

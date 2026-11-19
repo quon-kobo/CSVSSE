@@ -38,7 +38,7 @@ export async function showAbout(): Promise<void> {
     dd.append(v);
     info.append(el("dt", "", k), dd);
   };
-  row("作成", "© 2026 QUON-KOBO");
+  row("作成", "© 2026 QUON KOBO");
   row("ライセンス", "MIT License（無保証）");
   const link = el("a", "about-link", "github.com/quon-kobo/CSVSSE");
   link.href = REPO;

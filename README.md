@@ -65,4 +65,4 @@ npm run icon        # src-tauri\app-icon.svg からアイコンを再生成
 
 ## ライセンス
 
-[MIT License](LICENSE) © 2026 QUON-KOBO
+[MIT License](LICENSE) © 2026 QUON KOBO

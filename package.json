@@ -1,8 +1,8 @@
 {
   "name": "csvsse",
   "private": true,
-  "version": "0.1.1",
-  "author": "QUON-KOBO",
+  "version": "0.1.2",
+  "author": "QUON KOBO",
   "license": "MIT",
   "type": "module",
   "scripts": {
