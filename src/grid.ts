@@ -3,6 +3,7 @@
 import type { Doc, HistoryResult, Rect } from "./doc";
 import { parseCsv, toTsv } from "./csv";
 import { fillSeries } from "./fill";
+import { L } from "./i18n";
 
 const MAX_SCROLL_PX = 8_000_000; // browsers cap element height; beyond this we scale scrolling
 const EXTRA_ROWS = 100;
@@ -161,7 +162,7 @@ export class Grid {
     this.editor.spellcheck = false;
     this.editor.wrap = "off";
     this.editor.setAttribute("autocomplete", "off");
-    this.editor.setAttribute("aria-label", "セルの編集");
+    this.editor.setAttribute("aria-label", L().editCellAria);
     this.fillTip = document.createElement("div");
     this.fillTip.className = "fill-tip";
     this.fillTip.hidden = true;
@@ -1009,11 +1010,12 @@ export class Grid {
     const now = fillSeries(src, 1, false, F.ctrl)[0];
     const other = fillSeries(src, 1, false, !F.ctrl)[0];
     const series = now !== src[0];
-    const mode = series ? "連続データ" : "コピー";
-    const hint = now !== other ? `　Ctrl で${series ? "コピー" : "連続データ"}に切り替え` : "";
+    const t = L();
+    const mode = series ? t.fillSeries : t.fillCopy;
+    const hint = now !== other ? t.fillSwitch(series ? t.fillCopy : t.fillSeries) : "";
     tip.replaceChildren();
     const v = document.createElement("b");
-    v.textContent = last === "" ? "（空白）" : last;
+    v.textContent = last === "" ? t.blank : last;
     const m = document.createElement("small");
     m.textContent = `${mode}${hint}`;
     tip.append(v, m);
@@ -1052,7 +1054,7 @@ export class Grid {
   /** Fills `T` from the source range `S` (Excel's auto fill). */
   private applyFill(S: Rect, T: Rect, dir: FillDir, ctrl: boolean) {
     if ((T.r1 - T.r0 + 1) * (T.c1 - T.c0 + 1) > MAX_CELLS) {
-      this.cb.message("範囲が大きすぎます");
+      this.cb.message(L().rangeTooLarge);
       this.render();
       return;
     }
@@ -1462,7 +1464,7 @@ export class Grid {
     const h = R.r1 - R.r0 + 1;
     const w = R.c1 - R.c0 + 1;
     if (h * w > MAX_CELLS) {
-      this.cb.message("範囲が大きすぎます");
+      this.cb.message(L().rangeTooLarge);
       return;
     }
     const vals: string[][] = [];
@@ -1493,7 +1495,7 @@ export class Grid {
     const h = R.r1 - R.r0 + 1;
     const w = R.c1 - R.c0 + 1;
     if (h * w > MAX_CELLS) {
-      this.cb.message("範囲が大きすぎてコピーできません");
+      this.cb.message(L().rangeTooLargeToCopy);
       return;
     }
     const cells: string[][] = [];
@@ -1505,7 +1507,7 @@ export class Grid {
     try {
       await this.cb.writeClipboard(toTsv(cells));
     } catch {
-      this.cb.message("クリップボードにコピーできませんでした");
+      this.cb.message(L().clipboardFailed);
       return;
     }
     if (cut) {
@@ -1611,7 +1613,7 @@ export class Grid {
     const [r0, n] = this.rowSpan();
     const at = below ? r0 + n : r0;
     if (!this.doc.insertRows(at, n)) {
-      this.cb.message("データの範囲外には挿入できません");
+      this.cb.message(L().cannotInsertOutside);
       return;
     }
     this.copyRect = null;
@@ -1633,7 +1635,7 @@ export class Grid {
     const [c0, n] = this.colSpan();
     const at = right ? c0 + n : c0;
     if (!this.doc.insertCols(at, n)) {
-      this.cb.message("データの範囲外には挿入できません");
+      this.cb.message(L().cannotInsertOutside);
       return;
     }
     this.shiftWidths(at, n);

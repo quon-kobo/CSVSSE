@@ -7,32 +7,33 @@ import { Doc } from "./doc";
 import { Grid, colName, isNumeric, parseRef } from "./grid";
 import { detectDelimiter, detectNewline, parseCsv, serializeCsv } from "./csv";
 import { IN_TAURI, readFile, writeFile } from "./ipc";
-import { showAbout } from "./about";
+import { showAbout, showSettings } from "./about";
+import { L, onLangChange, resolveLang, setLang, type LangPref } from "./i18n";
 import { alertMsg, ask, hideBusy, isModalOpen, showBusy, showMenu, yieldToPaint, type MenuItem } from "./ui";
 
 const APP = "CSVSSE";
 const SAVE_ENCODINGS = ["UTF-8", "UTF-8 BOM", "Shift_JIS", "UTF-16LE"];
 const OPEN_ENCODINGS = ["UTF-8", "Shift_JIS", "UTF-16LE", "EUC-JP"];
-const DELIMS: { v: string; label: string }[] = [
-  { v: ",", label: "カンマ" },
-  { v: "\t", label: "タブ" },
-  { v: ";", label: "セミコロン" },
+const DELIMS: { v: string; label: () => string }[] = [
+  { v: ",", label: () => L().comma },
+  { v: "\t", label: () => L().tab },
+  { v: ";", label: () => L().semicolon },
 ];
 const NEWLINES: { v: string; label: string }[] = [
   { v: "\r\n", label: "CRLF" },
   { v: "\n", label: "LF" },
   { v: "\r", label: "CR" },
 ];
-const FILE_FILTERS = [
+const fileFilters = () => [
   { name: "CSV / TSV", extensions: ["csv", "tsv", "txt"] },
-  { name: "すべてのファイル", extensions: ["*"] },
+  { name: L().allFiles, extensions: ["*"] },
 ];
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const encLabel = (e: string) =>
-  e === "UTF-8 BOM" ? "UTF-8 (BOM付き)" : e === "UTF-16LE" ? "UTF-16 LE" : e === "UTF-16BE" ? "UTF-16 BE" : e;
-const delimLabel = (d: string) => DELIMS.find((x) => x.v === d)?.label ?? JSON.stringify(d);
+  e === "UTF-8 BOM" ? L().utf8Bom : e === "UTF-16LE" ? "UTF-16 LE" : e === "UTF-16BE" ? "UTF-16 BE" : e;
+const delimLabel = (d: string) => DELIMS.find((x) => x.v === d)?.label() ?? JSON.stringify(d);
 const nlLabel = (n: string) => NEWLINES.find((x) => x.v === n)?.label ?? "CRLF";
 const baseName = (p: string) => p.split(/[\\/]/).pop() ?? p;
 
@@ -82,14 +83,14 @@ const grid = new Grid($("grid"), doc, {
 // ------------------------------------------------------------------ refresh
 
 function updateTitle() {
-  const name = state.path ? baseName(state.path) : "無題";
+  const name = state.path ? baseName(state.path) : L().untitled;
   const title = `${isDirty() ? "*" : ""}${name} - ${APP}`;
   document.title = title;
   if (IN_TAURI) void getCurrentWindow().setTitle(title);
 }
 
 function updateStatus() {
-  $("st-size").textContent = `${doc.rowCount.toLocaleString()} 行 × ${doc.colCount.toLocaleString()} 列`;
+  $("st-size").textContent = L().size(doc.rowCount.toLocaleString(), doc.colCount.toLocaleString());
   $("st-delim").textContent = delimLabel(state.delimiter);
   $("st-nl").textContent = nlLabel(state.newline);
   $("st-enc").textContent = encLabel(state.encoding);
@@ -141,7 +142,7 @@ function selectionStats(): string {
   const R = grid.selRect();
   const cells = (R.r1 - R.r0 + 1) * (R.c1 - R.c0 + 1);
   if (cells <= 1) return "";
-  if (cells > 2_000_000) return `${cells.toLocaleString()} セル`;
+  if (cells > 2_000_000) return L().cells(cells.toLocaleString());
   let count = 0;
   let nums = 0;
   let sum = 0;
@@ -161,10 +162,11 @@ function selectionStats(): string {
     }
   }
   const parts: string[] = [];
-  if (nums) parts.push(`平均: ${fmt(sum / nums)}`);
-  parts.push(`データの個数: ${count.toLocaleString()}`);
-  if (nums) parts.push(`合計: ${fmt(sum)}`);
-  return parts.join("　");
+  const t = L();
+  if (nums) parts.push(`${t.average}: ${fmt(sum / nums)}`);
+  parts.push(`${t.count}: ${count.toLocaleString()}`);
+  if (nums) parts.push(`${t.sum}: ${fmt(sum)}`);
+  return parts.join(t.statSep);
 }
 
 // ------------------------------------------------------------------ file operations
@@ -172,18 +174,19 @@ function selectionStats(): string {
 async function confirmDiscard(): Promise<boolean> {
   grid.commitEdit();
   if (!isDirty()) return true;
-  const name = state.path ? baseName(state.path) : "無題";
-  const v = await ask(`「${name}」への変更を保存しますか？`, [
-    { label: "保存する", value: "save", primary: true },
-    { label: "保存しない", value: "discard" },
-    { label: "キャンセル", value: "cancel" },
+  const t = L();
+  const name = state.path ? baseName(state.path) : t.untitled;
+  const v = await ask(t.saveChanges(name), [
+    { label: t.doSave, value: "save", primary: true },
+    { label: t.dontSave, value: "discard" },
+    { label: t.cancel, value: "cancel" },
   ]);
   if (v === "save") return save(false);
   return v === "discard";
 }
 
 async function loadPath(path: string, opts: { encoding?: string; delimiter?: string } = {}) {
-  showBusy("読み込み中…");
+  showBusy(L().loading);
   await yieldToPaint();
   try {
     const { text, encoding } = await readFile(path, opts.encoding);
@@ -202,7 +205,7 @@ async function loadPath(path: string, opts: { encoding?: string; delimiter?: str
     });
     grid.reset();
     refreshAll();
-    setMessage(`${rows.length.toLocaleString()} 行を読み込みました`);
+    setMessage(L().loadedRows(rows.length.toLocaleString()));
   } catch (e) {
     hideBusy();
     await alertMsg(String(e));
@@ -214,7 +217,7 @@ async function loadPath(path: string, opts: { encoding?: string; delimiter?: str
 
 async function cmdOpen() {
   if (!IN_TAURI || !(await confirmDiscard())) return;
-  const p = await openDialog({ multiple: false, directory: false, filters: FILE_FILTERS });
+  const p = await openDialog({ multiple: false, directory: false, filters: fileFilters() });
   if (typeof p === "string") await loadPath(p);
 }
 
@@ -237,37 +240,33 @@ async function cmdNew() {
 async function save(saveAs: boolean): Promise<boolean> {
   grid.commitEdit();
   if (!IN_TAURI) {
-    setMessage("ブラウザープレビューでは保存できません");
+    setMessage(L().previewNoSave);
     return false;
   }
   let path = state.path;
   if (!path || saveAs) {
-    const p = await saveDialog({ defaultPath: state.path ?? "新規.csv", filters: FILE_FILTERS });
+    const p = await saveDialog({ defaultPath: state.path ?? L().newFileName, filters: fileFilters() });
     if (!p) return false;
     path = p;
     const ext = path.split(".").pop()?.toLowerCase();
     if (ext === "tsv" && state.delimiter !== "\t") state.delimiter = "\t";
     else if (ext === "csv" && state.delimiter === "\t") state.delimiter = ",";
   }
-  showBusy("保存中…");
+  const t = L();
+  showBusy(t.saving);
   await yieldToPaint();
   try {
     const text = serializeCsv(doc.rows, doc.colCount, state.delimiter, state.newline, state.trailingNewline);
     let res = await writeFile(path, text, state.encoding, false);
     if (res.unmappable) {
       hideBusy();
-      const v = await ask(
-        `文字コード「${encLabel(state.encoding)}」では保存できない文字があります。\n\n` +
-          `${res.unmappable.join("　")}\n\n` +
-          `UTF-8 (BOM付き) で保存すると、文字はそのまま残り Excel でも開けます。`,
-        [
-          { label: "UTF-8 (BOM付き) で保存", value: "utf8", primary: true },
-          { label: "「?」に置き換えて保存", value: "force" },
-          { label: "キャンセル", value: "cancel" },
-        ],
-      );
+      const v = await ask(t.unmappable(encLabel(state.encoding), res.unmappable.join("　")), [
+        { label: t.saveAsUtf8, value: "utf8", primary: true },
+        { label: t.saveReplacing, value: "force" },
+        { label: t.cancel, value: "cancel" },
+      ]);
       if (v === "cancel") return false;
-      showBusy("保存中…");
+      showBusy(t.saving);
       if (v === "utf8") {
         state.encoding = "UTF-8 BOM";
         res = await writeFile(path, text, state.encoding, false);
@@ -277,7 +276,7 @@ async function save(saveAs: boolean): Promise<boolean> {
     state.metaDirty = false;
     doc.markSaved();
     refreshAll();
-    setMessage(`保存しました（${encLabel(state.encoding)}）`);
+    setMessage(t.saved(encLabel(state.encoding)));
     return true;
   } catch (e) {
     hideBusy();
@@ -292,9 +291,9 @@ async function save(saveAs: boolean): Promise<boolean> {
 async function reopen(opts: { encoding?: string; delimiter?: string }) {
   if (!state.path) return;
   if (isDirty()) {
-    const v = await ask("変更内容は失われます。開き直しますか？", [
-      { label: "開き直す", value: "ok", primary: true },
-      { label: "キャンセル", value: "cancel" },
+    const v = await ask(L().reopenConfirm, [
+      { label: L().reopen, value: "ok", primary: true },
+      { label: L().cancel, value: "cancel" },
     ]);
     if (v !== "ok") return;
   }
@@ -304,21 +303,22 @@ async function reopen(opts: { encoding?: string; delimiter?: string }) {
 // ------------------------------------------------------------------ menus
 
 function openContextMenu(x: number, y: number) {
+  const t = L();
   showMenu(
     [
-      { label: "切り取り", shortcut: "Ctrl+X", action: () => void grid.copy(true) },
-      { label: "コピー", shortcut: "Ctrl+C", action: () => void grid.copy(false) },
-      { label: "貼り付け", shortcut: "Ctrl+V", action: () => void grid.paste() },
+      { label: t.cut, shortcut: "Ctrl+X", action: () => void grid.copy(true) },
+      { label: t.copy, shortcut: "Ctrl+C", action: () => void grid.copy(false) },
+      { label: t.paste, shortcut: "Ctrl+V", action: () => void grid.paste() },
       { sep: true },
-      { label: "上に行を挿入", shortcut: "Ctrl++", action: () => grid.insertRows(false) },
-      { label: "下に行を挿入", action: () => grid.insertRows(true) },
-      { label: "行を削除", shortcut: "Ctrl+-", action: () => grid.deleteRows() },
+      { label: t.insertRowAbove, shortcut: "Ctrl++", action: () => grid.insertRows(false) },
+      { label: t.insertRowBelow, action: () => grid.insertRows(true) },
+      { label: t.deleteRow, shortcut: "Ctrl+-", action: () => grid.deleteRows() },
       { sep: true },
-      { label: "左に列を挿入", action: () => grid.insertCols(false) },
-      { label: "右に列を挿入", action: () => grid.insertCols(true) },
-      { label: "列を削除", action: () => grid.deleteCols() },
+      { label: t.insertColLeft, action: () => grid.insertCols(false) },
+      { label: t.insertColRight, action: () => grid.insertCols(true) },
+      { label: t.deleteCol, action: () => grid.deleteCols() },
       { sep: true },
-      { label: "内容をクリア", shortcut: "Delete", action: () => grid.clear() },
+      { label: t.clearContents, shortcut: "Delete", action: () => grid.clear() },
     ],
     x,
     y,
@@ -334,7 +334,7 @@ function statusMenu(btn: HTMLElement, items: MenuItem[]) {
 $("st-enc").addEventListener("click", (e) => {
   const list = SAVE_ENCODINGS.includes(state.encoding) ? SAVE_ENCODINGS : [state.encoding, ...SAVE_ENCODINGS];
   const items: MenuItem[] = [
-    { header: "保存するときの文字コード" },
+    { header: L().saveEncoding },
     ...list.map((enc) => ({
       label: encLabel(enc),
       checked: state.encoding === enc,
@@ -349,7 +349,7 @@ $("st-enc").addEventListener("click", (e) => {
   if (state.path) {
     items.push(
       { sep: true },
-      { header: "文字コードを指定して開き直す" },
+      { header: L().reopenEncoding },
       ...OPEN_ENCODINGS.map((enc) => ({ label: encLabel(enc), action: () => void reopen({ encoding: enc }) })),
     );
   }
@@ -358,9 +358,9 @@ $("st-enc").addEventListener("click", (e) => {
 
 $("st-delim").addEventListener("click", (e) => {
   const items: MenuItem[] = [
-    { header: "保存するときの区切り文字" },
+    { header: L().saveDelimiter },
     ...DELIMS.map((d) => ({
-      label: d.label,
+      label: d.label(),
       checked: state.delimiter === d.v,
       action: () => {
         if (state.delimiter === d.v) return;
@@ -373,9 +373,9 @@ $("st-delim").addEventListener("click", (e) => {
   if (state.path) {
     items.push(
       { sep: true },
-      { header: "区切り文字を指定して開き直す" },
+      { header: L().reopenDelimiter },
       ...DELIMS.map((d) => ({
-        label: d.label,
+        label: d.label(),
         action: () => void reopen({ delimiter: d.v, encoding: state.encoding }),
       })),
     );
@@ -385,9 +385,9 @@ $("st-delim").addEventListener("click", (e) => {
 
 $("st-nl").addEventListener("click", (e) => {
   statusMenu(e.currentTarget as HTMLElement, [
-    { header: "保存するときの改行コード" },
+    { header: L().saveNewline },
     ...NEWLINES.map((n) => ({
-      label: `${n.label}${n.v === "\r\n" ? "（Windows）" : n.v === "\n" ? "（Mac / Linux）" : ""}`,
+      label: `${n.label}${n.v === "\r\n" ? L().nlWindows : n.v === "\n" ? L().nlUnix : ""}`,
       checked: state.newline === n.v,
       action: () => {
         if (state.newline === n.v) return;
@@ -446,7 +446,7 @@ function findNext(dir: 1 | -1): boolean {
       return true;
     }
   }
-  setMessage(`「${findQ.value}」は見つかりませんでした`);
+  setMessage(L().notFound(findQ.value));
   return false;
 }
 
@@ -461,7 +461,7 @@ function updateFindCount() {
     }
     let n = 0;
     for (const row of doc.rows) for (let c = 0; c < row.length; c++) if (cellMatches(row[c], q)) n++;
-    $("find-count").textContent = n ? `${n.toLocaleString()} 件` : "0 件";
+    $("find-count").textContent = L().matches(n.toLocaleString());
   }, 150);
 }
 
@@ -496,7 +496,7 @@ function replaceAll() {
   grid.render();
   refreshAll();
   updateFindCount();
-  setMessage(n ? `${n.toLocaleString()} 件のセルを置換しました` : "置換する文字列が見つかりませんでした");
+  setMessage(n ? L().replacedCells(n.toLocaleString()) : L().nothingToReplace);
 }
 
 findQ.addEventListener("input", updateFindCount);
@@ -569,7 +569,7 @@ namebox.addEventListener("keydown", (e) => {
     grid.focus();
     if (R) grid.select(R.r0, R.c0, R.r1, R.c1);
     else {
-      setMessage("セル番地は「B12」や「A1:C5」の形で入力してください");
+      setMessage(L().badRef);
       refreshSelection();
     }
   } else if (e.key === "Escape") {
@@ -597,8 +597,39 @@ const commands: Record<string, () => void> = {
   find: () => openFind(false),
   replace: () => openFind(true),
   freeze: toggleFreeze,
+  settings: () => void openSettings(),
   about: () => void showAbout(),
 };
+
+// ------------------------------------------------------------------ language
+
+let langPref: LangPref = "auto";
+let osLang: string | null = null;
+
+function applyLanguage() {
+  const l = resolveLang(langPref, osLang);
+  setLang(l);
+  if (IN_TAURI) void invoke("set_language", { lang: l }).catch(() => {});
+}
+
+onLangChange(() => {
+  grid.editor.setAttribute("aria-label", L().editCellAria);
+  refreshAll();
+  updateFindCount();
+});
+
+async function openSettings() {
+  await showSettings({
+    pref: langPref,
+    osLang,
+    onLanguage: (p) => {
+      langPref = p;
+      applyLanguage();
+      void persistSettings();
+    },
+  });
+  grid.focus();
+}
 
 document.querySelectorAll<HTMLButtonElement>("[data-cmd]").forEach((b) => {
   b.addEventListener("mousedown", (e) => e.preventDefault()); // keep focus in the grid
@@ -625,6 +656,7 @@ window.addEventListener(
     else if (e.key === "F3") findNext(e.shiftKey ? -1 : 1);
     else if (e.key === "F12") toggleFreeze();
     else if (e.key === "F1") void showAbout();
+    else if (ctrl && e.key === ",") void openSettings();
     // Swallow browser shortcuts that make no sense in a desktop app.
     else if (e.key === "F5" || (ctrl && (k === "r" || k === "p" || k === "g" || k === "u" || k === "j"))) {
       /* ignore */
@@ -646,7 +678,7 @@ document.addEventListener("contextmenu", (e) => {
 
 async function persistSettings() {
   try {
-    await invoke("save_settings", { settings: { freezeTop: grid.freezeTop, zoom: grid.zoom } });
+    await invoke("save_settings", { settings: { freezeTop: grid.freezeTop, zoom: grid.zoom, language: langPref } });
   } catch {
     /* settings are best-effort */
   }
@@ -675,12 +707,19 @@ async function initTauri() {
 async function setupTauri() {
   const win = getCurrentWindow();
   try {
+    osLang = await invoke<string>("os_language");
+  } catch {
+    osLang = null;
+  }
+  try {
     const s = await invoke<Record<string, unknown>>("load_settings");
     if (typeof s.freezeTop === "boolean") grid.setFreeze(s.freezeTop);
     if (typeof s.zoom === "number") grid.setZoom(s.zoom, true);
+    if (s.language === "ja" || s.language === "en" || s.language === "auto") langPref = s.language;
   } catch {
     /* defaults */
   }
+  applyLanguage();
 
   await win.onCloseRequested(async (e) => {
     grid.commitEdit();
@@ -726,6 +765,13 @@ function initBrowserPreview() {
   refreshAll();
   grid.focus();
 }
+
+// Browser preview: ?lang=en / ?lang=ja forces a language; otherwise follow the browser.
+if (!IN_TAURI) {
+  const q = new URLSearchParams(location.search).get("lang");
+  if (q === "ja" || q === "en") langPref = q;
+}
+applyLanguage();
 
 if (IN_TAURI) void initTauri();
 else initBrowserPreview();

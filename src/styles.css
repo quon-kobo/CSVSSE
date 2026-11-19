@@ -536,7 +536,7 @@ svg {
 }
 .modal-msg {
   white-space: pre-wrap;
-  word-break: break-all;
+  overflow-wrap: anywhere;
   line-height: 1.6;
   user-select: text;
   -webkit-user-select: text;
@@ -597,6 +597,43 @@ svg {
   text-decoration: underline;
 }
 
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.set-section {
+  padding: 12px 14px;
+  background: var(--app-bg);
+  border-radius: var(--radius);
+}
+.set-heading {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.set-select {
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  font: 13px var(--font);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  outline: none;
+}
+.set-select:focus {
+  border-color: var(--accent);
+}
+.set-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
 .assoc-title {
   font-size: 14px;
   font-weight: 600;

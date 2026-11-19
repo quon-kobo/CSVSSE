@@ -3,6 +3,7 @@ use std::{
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 use encoding_rs::{EncoderResult, Encoding, SHIFT_JIS, UTF_16BE, UTF_16LE};
@@ -19,6 +20,40 @@ mod assoc;
 const SETTINGS_FILE: &str = "csvsse.settings.json";
 const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
 
+// ---------------------------------------------------------------- language
+
+/// UI language for messages sent from Rust. Set from the front end (set_language).
+static JAPANESE: AtomicBool = AtomicBool::new(true);
+
+/// Picks the Japanese or English variant of a message.
+pub(crate) fn tr<'a>(ja: &'a str, en: &'a str) -> &'a str {
+    if JAPANESE.load(Ordering::Relaxed) { ja } else { en }
+}
+
+/// "ja" when the Windows display language is Japanese, otherwise "en".
+fn os_lang() -> &'static str {
+    #[cfg(windows)]
+    {
+        // SAFETY: no arguments, returns a LANGID.
+        let id = unsafe { windows_sys::Win32::Globalization::GetUserDefaultUILanguage() };
+        const LANG_JAPANESE: u16 = 0x11;
+        if id & 0x3ff == LANG_JAPANESE {
+            return "ja";
+        }
+    }
+    "en"
+}
+
+#[tauri::command]
+fn os_language() -> String {
+    os_lang().into()
+}
+
+#[tauri::command]
+fn set_language(lang: String) {
+    JAPANESE.store(lang == "ja", Ordering::Relaxed);
+}
+
 // ---------------------------------------------------------------- settings
 
 fn settings_path() -> Option<PathBuf> {
@@ -28,7 +63,8 @@ fn settings_path() -> Option<PathBuf> {
 fn read_settings() -> Value {
     settings_path()
         .and_then(|p| fs::read_to_string(p).ok())
-        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        // Tolerate a BOM in case the file was edited by hand (e.g. Notepad / PowerShell).
+        .and_then(|s| serde_json::from_str::<Value>(s.trim_start_matches('\u{feff}')).ok())
         .filter(Value::is_object)
         .unwrap_or_else(|| json!({}))
 }
@@ -59,7 +95,7 @@ fn save_settings(window: WebviewWindow, settings: Value) -> Result<(), String> {
         }
         obj.insert("window".into(), geo);
     }
-    let path = settings_path().ok_or("設定ファイルの場所が分かりません")?;
+    let path = settings_path().ok_or_else(|| tr("設定ファイルの場所が分かりません", "Cannot locate the settings file").to_string())?;
     // A read-only folder (e.g. a network share) just means settings are not remembered.
     let _ = fs::write(path, serde_json::to_string_pretty(&all).unwrap_or_default());
     Ok(())
@@ -112,7 +148,7 @@ fn pack(header: &Value, payload: &[u8]) -> Vec<u8> {
 }
 
 fn unpack(body: &[u8]) -> Result<(Value, &[u8]), String> {
-    let bad = || "不正なデータを受け取りました".to_string();
+    let bad = || tr("不正なデータを受け取りました", "Received invalid data").to_string();
     let n = u32::from_le_bytes(body.get(0..4).ok_or_else(bad)?.try_into().map_err(|_| bad())?) as usize;
     let h = body.get(4..4 + n).ok_or_else(bad)?;
     let header = serde_json::from_slice(h).map_err(|_| bad())?;
@@ -126,7 +162,7 @@ fn label_of(enc: &'static Encoding) -> String {
 }
 
 fn lookup(label: &str) -> Result<&'static Encoding, String> {
-    Encoding::for_label(label.as_bytes()).ok_or_else(|| format!("未対応の文字コードです: {label}"))
+    Encoding::for_label(label.as_bytes()).ok_or_else(|| format!("{}: {label}", tr("未対応の文字コードです", "Unsupported encoding")))
 }
 
 /// Decodes file bytes to text. Returns (text, encoding label).
@@ -237,7 +273,7 @@ fn encode_legacy(enc: &'static Encoding, text: &str, force: bool) -> Result<Vec<
 
 #[tauri::command]
 async fn read_file(path: String, encoding: Option<String>) -> Result<Response, String> {
-    let bytes = fs::read(&path).map_err(|e| format!("ファイルを開けませんでした。\n{e}"))?;
+    let bytes = fs::read(&path).map_err(|e| format!("{}\n{e}", tr("ファイルを開けませんでした。", "Could not open the file.")))?;
     let (text, label) = decode(bytes, encoding.as_deref())?;
     Ok(Response::new(pack(&json!({ "encoding": label }), text.as_bytes())))
 }
@@ -245,20 +281,26 @@ async fn read_file(path: String, encoding: Option<String>) -> Result<Response, S
 #[tauri::command]
 async fn write_file(request: Request<'_>) -> Result<Value, String> {
     let InvokeBody::Raw(body) = request.body() else {
-        return Err("不正なリクエストです".into());
+        return Err(tr("不正なリクエストです", "Invalid request").into());
     };
     let (header, payload) = unpack(body)?;
-    let path = header["path"].as_str().ok_or("保存先が指定されていません")?;
+    let path = header["path"].as_str().ok_or_else(|| tr("保存先が指定されていません", "No destination path").to_string())?;
     let label = header["encoding"].as_str().unwrap_or("UTF-8");
     let force = header["force"].as_bool().unwrap_or(false);
-    let text = std::str::from_utf8(payload).map_err(|_| "文字データが壊れています".to_string())?;
+    let text = std::str::from_utf8(payload).map_err(|_| tr("文字データが壊れています", "The text data is corrupted").to_string())?;
     let (bom, data) = match encode(text, label, force) {
         Ok(v) => v,
         Err(EncodeError::Unmappable(chars)) => return Ok(json!({ "unmappable": chars })),
         Err(EncodeError::Message(m)) => return Err(m),
     };
     write_atomic(Path::new(path), bom, &data).map_err(|e| {
-        format!("保存できませんでした。ファイルが他のアプリ（Excel など）で開かれていないか確認してください。\n{e}")
+        format!(
+            "{}\n{e}",
+            tr(
+                "保存できませんでした。ファイルが他のアプリ（Excel など）で開かれていないか確認してください。",
+                "Could not save. Check that the file is not open in another app (such as Excel)."
+            )
+        )
     })?;
     Ok(json!({ "ok": true }))
 }
@@ -268,7 +310,7 @@ async fn write_file(request: Request<'_>) -> Result<Value, String> {
 fn write_atomic(path: &Path, prefix: &[u8], data: &[u8]) -> io::Result<()> {
     let name = path
         .file_name()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "ファイル名がありません"))?;
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, tr("ファイル名がありません", "No file name")))?;
     let tmp = path.with_file_name(format!("{}.csvsse-tmp", name.to_string_lossy()));
     let result = (|| {
         let mut f = fs::File::create(&tmp)?;
@@ -300,7 +342,7 @@ fn new_window(path: Option<String>) -> Result<(), String> {
     if let Some(p) = path {
         cmd.arg(p);
     }
-    cmd.spawn().map(|_| ()).map_err(|e| format!("新しいウィンドウを開けませんでした。\n{e}"))
+    cmd.spawn().map(|_| ()).map_err(|e| format!("{}\n{e}", tr("新しいウィンドウを開けませんでした。", "Could not open a new window.")))
 }
 
 // ---------------------------------------------------------------- file association
@@ -320,7 +362,7 @@ fn set_association(enable: bool) -> Result<(), String> {
     #[cfg(not(windows))]
     {
         let _ = enable;
-        Err("Windows 専用の機能です".into())
+        Err(tr("Windows 専用の機能です", "Windows only").into())
     }
 }
 
@@ -329,7 +371,7 @@ fn choose_default_app() -> Result<(), String> {
     #[cfg(windows)]
     return assoc::choose_default();
     #[cfg(not(windows))]
-    Err("Windows 専用の機能です".into())
+    Err(tr("Windows 専用の機能です", "Windows only").into())
 }
 
 #[cfg(test)]
@@ -406,7 +448,9 @@ pub fn run() {
             save_settings,
             association_status,
             set_association,
-            choose_default_app
+            choose_default_app,
+            os_language,
+            set_language
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

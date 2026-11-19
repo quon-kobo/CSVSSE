@@ -8,53 +8,58 @@
     <script type="module" src="/src/main.ts" defer></script>
   </head>
   <body>
+    <!-- Text below is filled in by src/i18n.ts (data-i18n* = key in the dictionary). -->
     <div id="app">
-      <header id="toolbar" role="toolbar" aria-label="ツールバー">
-        <button class="tb" data-cmd="new" title="新規作成 (Ctrl+N)">
+      <header id="toolbar" role="toolbar" data-i18n-aria="toolbar">
+        <button class="tb" data-cmd="new" data-i18n-title="tbNewTip">
           <svg viewBox="0 0 16 16"><path d="M4 1.5h5l3.5 3.5v9.5h-8.5z" /><path d="M9 1.5V5h3.5" /><path d="M8.25 7.5v4.5M6 9.75h4.5" /></svg>
-          <span>新規</span>
+          <span data-i18n="tbNew"></span>
         </button>
-        <button class="tb" data-cmd="open" title="開く (Ctrl+O)">
+        <button class="tb" data-cmd="open" data-i18n-title="tbOpenTip">
           <svg viewBox="0 0 16 16"><path d="M1.5 3.5h4.25l1.5 1.5h7.25v8.5h-13z" /><path d="M1.5 7h13" /></svg>
-          <span>開く</span>
+          <span data-i18n="tbOpen"></span>
         </button>
-        <button class="tb" data-cmd="save" title="上書き保存 (Ctrl+S)">
+        <button class="tb" data-cmd="save" data-i18n-title="tbSaveTip">
           <svg viewBox="0 0 16 16"><path d="M2.5 2.5h9l2 2v9h-11z" /><path d="M5 2.5v3h5.5v-3" /><path d="M5 13.5V9.5h6v4" /></svg>
-          <span>保存</span>
+          <span data-i18n="tbSave"></span>
         </button>
         <div class="tb-sep"></div>
-        <button class="tb" data-cmd="undo" id="btn-undo" title="元に戻す (Ctrl+Z)">
+        <button class="tb" data-cmd="undo" id="btn-undo" data-i18n-title="tbUndoTip">
           <svg viewBox="0 0 16 16"><path d="M5.5 2.5 2.5 5.5l3 3" /><path d="M2.5 5.5h7a4 4 0 0 1 0 8H7" /></svg>
-          <span>元に戻す</span>
+          <span data-i18n="tbUndo"></span>
         </button>
-        <button class="tb" data-cmd="redo" id="btn-redo" title="やり直し (Ctrl+Y)">
+        <button class="tb" data-cmd="redo" id="btn-redo" data-i18n-title="tbRedoTip">
           <svg viewBox="0 0 16 16"><path d="m10.5 2.5 3 3-3 3" /><path d="M13.5 5.5h-7a4 4 0 0 0 0 8H9" /></svg>
-          <span>やり直し</span>
+          <span data-i18n="tbRedo"></span>
         </button>
         <div class="tb-sep"></div>
-        <button class="tb" data-cmd="find" title="検索と置換 (Ctrl+F)">
+        <button class="tb" data-cmd="find" data-i18n-title="tbFindTip">
           <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3.5 3.5" /></svg>
-          <span>検索</span>
+          <span data-i18n="tbFind"></span>
         </button>
-        <button class="tb" data-cmd="replace" title="置換 (Ctrl+H)">
+        <button class="tb" data-cmd="replace" data-i18n-title="tbReplaceTip">
           <svg viewBox="0 0 16 16"><path d="M2.5 5.5h9l-2.5-2.5" /><path d="M13.5 10.5h-9l2.5 2.5" /></svg>
-          <span>置換</span>
+          <span data-i18n="tbReplace"></span>
         </button>
-        <button class="tb toggle" data-cmd="freeze" id="btn-freeze" aria-pressed="false" title="1行目（見出し）を固定して表示">
+        <button class="tb toggle" data-cmd="freeze" id="btn-freeze" aria-pressed="false" data-i18n-title="tbFreezeTip">
           <svg viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="11" rx="1.5" /><path d="M2 6.5h12M6.5 6.5v7M10 6.5v7" /><path class="fill" d="M2.75 3.25h10.5v2.5H2.75z" /></svg>
-          <span>1行目を固定</span>
+          <span data-i18n="tbFreeze"></span>
         </button>
         <div class="tb-spacer"></div>
-        <button class="tb" data-cmd="about" title="このアプリについて (F1)">
+        <button class="tb" data-cmd="settings" data-i18n-title="tbSettingsTip">
+          <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.25" /><path d="M8 1.75v1.5M8 12.75v1.5M14.25 8h-1.5M3.25 8h-1.5M12.42 3.58l-1.06 1.06M4.64 11.36l-1.06 1.06M12.42 12.42l-1.06-1.06M4.64 4.64 3.58 3.58" /></svg>
+          <span data-i18n="tbSettings"></span>
+        </button>
+        <button class="tb" data-cmd="about" data-i18n-title="tbAboutTip">
           <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.25" /><path d="M8 7.25v4" /><circle class="dot" cx="8" cy="5" r="0.4" /></svg>
-          <span>情報</span>
+          <span data-i18n="tbAbout"></span>
         </button>
       </header>
 
       <div id="fbar">
-        <input id="namebox" spellcheck="false" autocomplete="off" aria-label="セル番地" title="セル番地（例: B12 と入力して Enter で移動）" />
+        <input id="namebox" spellcheck="false" autocomplete="off" data-i18n-aria="nameboxAria" data-i18n-title="nameboxTip" />
         <div class="fx" aria-hidden="true">fx</div>
-        <textarea id="formula" rows="1" spellcheck="false" aria-label="セルの内容"></textarea>
+        <textarea id="formula" rows="1" spellcheck="false" data-i18n-aria="formulaAria"></textarea>
       </div>
 
       <main id="grid"></main>
@@ -64,38 +69,38 @@
         <span class="st-spacer"></span>
         <span id="st-sel"></span>
         <span id="st-size"></span>
-        <button class="st-btn" id="st-delim" title="区切り文字"></button>
-        <button class="st-btn" id="st-nl" title="改行コード"></button>
-        <button class="st-btn" id="st-enc" title="文字コード"></button>
+        <button class="st-btn" id="st-delim" data-i18n-title="stDelimTip"></button>
+        <button class="st-btn" id="st-nl" data-i18n-title="stNewlineTip"></button>
+        <button class="st-btn" id="st-enc" data-i18n-title="stEncodingTip"></button>
         <span id="st-zoom"></span>
       </footer>
 
       <div id="findbar" hidden>
         <div class="find-row">
-          <button class="icon-btn" id="find-expand" title="置換の表示/非表示" aria-expanded="false">
+          <button class="icon-btn" id="find-expand" data-i18n-title="findToggleTip" aria-expanded="false">
             <svg viewBox="0 0 16 16"><path d="m6 4 4 4-4 4" /></svg>
           </button>
-          <input id="find-q" placeholder="検索" spellcheck="false" autocomplete="off" aria-label="検索する文字列" />
+          <input id="find-q" spellcheck="false" autocomplete="off" data-i18n-placeholder="findPlaceholder" data-i18n-aria="findAria" />
           <span id="find-count"></span>
-          <button class="icon-btn" id="find-prev" title="前を検索 (Shift+Enter)">
+          <button class="icon-btn" id="find-prev" data-i18n-title="findPrevTip">
             <svg viewBox="0 0 16 16"><path d="m4 10 4-4 4 4" /></svg>
           </button>
-          <button class="icon-btn" id="find-next" title="次を検索 (Enter)">
+          <button class="icon-btn" id="find-next" data-i18n-title="findNextTip">
             <svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg>
           </button>
-          <button class="icon-btn" id="find-close" title="閉じる (Esc)">
+          <button class="icon-btn" id="find-close" data-i18n-title="findCloseTip">
             <svg viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8" /></svg>
           </button>
         </div>
         <div class="find-row" id="rep-row" hidden>
           <span class="find-indent"></span>
-          <input id="rep-q" placeholder="置換後の文字列" spellcheck="false" autocomplete="off" aria-label="置換後の文字列" />
-          <button class="btn small" id="rep-one">置換</button>
-          <button class="btn small" id="rep-all">すべて置換</button>
+          <input id="rep-q" spellcheck="false" autocomplete="off" data-i18n-placeholder="replacePlaceholder" data-i18n-aria="replacePlaceholder" />
+          <button class="btn small" id="rep-one" data-i18n="replaceOne"></button>
+          <button class="btn small" id="rep-all" data-i18n="replaceAll"></button>
         </div>
       </div>
 
-      <div id="drop" hidden><div>ここにファイルをドロップして開く</div></div>
+      <div id="drop" hidden><div data-i18n="dropHere"></div></div>
       <div id="busy" hidden><div class="busy-box"><div class="spinner"></div><span class="busy-text"></span></div></div>
     </div>
   </body>

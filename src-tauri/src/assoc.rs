@@ -9,6 +9,8 @@ use std::{fs, path::PathBuf};
 
 use winreg::{RegKey, enums::HKEY_CURRENT_USER};
 
+use crate::tr;
+
 const PROGID: &str = "CSVSSE.csv";
 const APP_KEY: &str = r"Software\Classes\Applications\CSVSSE.exe";
 const EXTS: [&str; 2] = [".csv", ".tsv"];
@@ -16,7 +18,7 @@ const EXTS: [&str; 2] = [".csv", ".tsv"];
 const FILE_ICON: &[u8] = include_bytes!("../icons/csv-file.ico");
 
 fn data_dir() -> Result<PathBuf, String> {
-    let base = std::env::var_os("LOCALAPPDATA").ok_or("LOCALAPPDATA が見つかりません")?;
+    let base = std::env::var_os("LOCALAPPDATA").ok_or_else(|| tr("LOCALAPPDATA が見つかりません", "LOCALAPPDATA not found").to_string())?;
     Ok(PathBuf::from(base).join("CSVSSE"))
 }
 
@@ -29,7 +31,7 @@ fn open_command() -> Result<String, String> {
 }
 
 fn err(e: std::io::Error) -> String {
-    format!("レジストリを書き換えられませんでした。\n{e}")
+    format!("{}\n{e}", tr("レジストリを書き換えられませんでした。", "Could not write to the registry."))
 }
 
 /// True when the registration exists and points at this exe.
@@ -52,7 +54,7 @@ pub fn register() -> Result<(), String> {
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let (prog, _) = hkcu.create_subkey(format!(r"Software\Classes\{PROGID}")).map_err(err)?;
-    prog.set_value("", &"CSV ファイル").map_err(err)?;
+    prog.set_value("", &tr("CSV ファイル", "CSV file")).map_err(err)?;
     prog.create_subkey("DefaultIcon").map_err(err)?.0.set_value("", &icon).map_err(err)?;
     prog.create_subkey(r"shell\open\command").map_err(err)?.0.set_value("", &command).map_err(err)?;
 
@@ -108,7 +110,7 @@ pub fn choose_default() -> Result<(), String> {
         .arg(&sample)
         .spawn()
         .map(|_| ())
-        .map_err(|e| format!("Windows の設定画面を開けませんでした。\n{e}"))
+        .map_err(|e| format!("{}\n{e}", tr("Windows の設定画面を開けませんでした。", "Could not open the Windows dialog.")))
 }
 
 /// Tells Explorer that associations changed so file icons refresh.
