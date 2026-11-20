@@ -334,6 +334,12 @@ fn initial_file() -> Option<String> {
     Some(p.to_string_lossy().into_owned())
 }
 
+/// 「最近使ったファイル」から開く前に、ファイルが残っているか確かめる
+#[tauri::command]
+fn path_exists(path: String) -> bool {
+    std::path::Path::new(&path).is_file()
+}
+
 /// Starts another instance of this exe (one window per file, no tabs).
 #[tauri::command]
 fn new_window(path: Option<String>) -> Result<(), String> {
@@ -443,6 +449,7 @@ pub fn run() {
             read_file,
             write_file,
             initial_file,
+            path_exists,
             new_window,
             load_settings,
             save_settings,

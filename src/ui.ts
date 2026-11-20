@@ -1,7 +1,16 @@
 // Small UI helpers: popup menu, modal dialog, busy overlay.
 
 export type MenuItem =
-  | { label: string; action?: () => void; checked?: boolean; disabled?: boolean; shortcut?: string }
+  | {
+      label: string;
+      action?: () => void;
+      checked?: boolean;
+      disabled?: boolean;
+      shortcut?: string;
+      /** 右側に薄く出す補足（長いと左側を省略。例: フォルダーのパス） */
+      detail?: string;
+      title?: string;
+    }
   | { sep: true }
   | { header: string };
 
@@ -51,8 +60,10 @@ export function showMenu(
       label.className = "menu-label";
       label.textContent = it.label;
       const sc = document.createElement("span");
-      sc.className = "menu-shortcut";
-      sc.textContent = it.shortcut ?? "";
+      sc.className = it.detail !== undefined ? "menu-shortcut path" : "menu-shortcut";
+      // direction: rtl で左側を省略するので、記号の並びが崩れないよう LRM で囲む
+      sc.textContent = it.detail !== undefined ? `‎${it.detail}‎` : (it.shortcut ?? "");
+      if (it.title) b.title = it.title;
       b.append(check, label, sc);
       b.addEventListener("click", () => {
         closeMenu();

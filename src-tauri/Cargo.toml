@@ -1,6 +1,6 @@
 [package]
 name = "csvsse"
-version = "0.1.5"
+version = "0.1.6"
 description = "CSVSSE - simple CSV editor"
 authors = ["QUON KOBO"]
 license = "MIT"

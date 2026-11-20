@@ -24,6 +24,11 @@ const NEWLINES: { v: string; label: string }[] = [
   { v: "\n", label: "LF" },
   { v: "\r", label: "CR" },
 ];
+/** Grid.setZoom の範囲と同じ */
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3;
+const ZOOM_PRESETS = [50, 75, 100, 125, 150, 200, 300];
+const RECENT_MAX = 10;
 const fileFilters = () => [
   { name: "CSV / TSV", extensions: ["csv", "tsv", "txt"] },
   { name: L().allFiles, extensions: ["*"] },
@@ -94,7 +99,9 @@ function updateStatus() {
   $("st-delim").textContent = delimLabel(state.delimiter);
   $("st-nl").textContent = nlLabel(state.newline);
   $("st-enc").textContent = encLabel(state.encoding);
-  $("st-zoom").textContent = grid.zoom === 1 ? "" : `${Math.round(grid.zoom * 100)}%`;
+  $("st-zoom").textContent = `${Math.round(grid.zoom * 100)}%`;
+  $<HTMLButtonElement>("zoom-out").disabled = grid.zoom <= ZOOM_MIN;
+  $<HTMLButtonElement>("zoom-in").disabled = grid.zoom >= ZOOM_MAX;
 }
 
 function updateButtons() {
@@ -206,6 +213,7 @@ async function loadPath(path: string, opts: { encoding?: string; delimiter?: str
     grid.reset();
     refreshAll();
     setMessage(L().loadedRows(rows.length.toLocaleString()));
+    void addRecent(path);
   } catch (e) {
     hideBusy();
     await alertMsg(String(e));
@@ -274,9 +282,11 @@ async function save(saveAs: boolean): Promise<boolean> {
     }
     state.path = path;
     state.metaDirty = false;
-    doc.markSaved();
+    doc.markSaved(); // 変更セルの色付けもここで消える
+    grid.render();
     refreshAll();
     setMessage(t.saved(encLabel(state.encoding)));
+    void addRecent(path);
     return true;
   } catch (e) {
     hideBusy();
@@ -287,6 +297,85 @@ async function save(saveAs: boolean): Promise<boolean> {
     grid.focus();
   }
 }
+
+// ------------------------------------------------------------------ recent files
+// 一覧は設定ファイルの "recent" に入れる。ウィンドウが複数あっても食い違わないよう、毎回読み直す。
+
+let recentPreview: string[] = []; // ブラウザープレビュー用
+
+const samePath = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+const dirName = (p: string) => p.slice(0, Math.max(0, p.length - baseName(p).length)).replace(/[\\/]$/, "");
+
+async function loadRecent(): Promise<string[]> {
+  if (!IN_TAURI) return recentPreview;
+  try {
+    const r = (await invoke<Record<string, unknown>>("load_settings")).recent;
+    return Array.isArray(r) ? r.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveRecent(list: string[]) {
+  if (!IN_TAURI) {
+    recentPreview = list;
+    return;
+  }
+  try {
+    await invoke("save_settings", { settings: { recent: list } });
+  } catch {
+    /* 設定は保存できなくても困らない */
+  }
+}
+
+async function addRecent(path: string) {
+  const list = (await loadRecent()).filter((p) => !samePath(p, path));
+  list.unshift(path);
+  await saveRecent(list.slice(0, RECENT_MAX));
+}
+
+async function removeRecent(path: string) {
+  await saveRecent((await loadRecent()).filter((p) => !samePath(p, path)));
+}
+
+async function openRecent(path: string) {
+  if (IN_TAURI && !(await invoke<boolean>("path_exists", { path }))) {
+    const t = L();
+    const v = await ask(t.recentMissing(path), [
+      { label: t.recentRemove, value: "remove", primary: true },
+      { label: t.cancel, value: "cancel" },
+    ]);
+    if (v === "remove") await removeRecent(path);
+    grid.focus();
+    return;
+  }
+  if (!(await confirmDiscard())) return;
+  if (IN_TAURI) await loadPath(path);
+  else setMessage(L().previewNoSave);
+}
+
+async function showRecentMenu(btn: HTMLElement) {
+  const list = await loadRecent();
+  const t = L();
+  const items: MenuItem[] = [{ header: t.recentHeader }];
+  if (!list.length) items.push({ label: t.recentEmpty, disabled: true });
+  for (const p of list) {
+    items.push({
+      label: baseName(p),
+      detail: dirName(p),
+      title: p,
+      checked: state.path !== null && samePath(state.path, p) ? true : undefined,
+      action: () => void openRecent(p),
+    });
+  }
+  if (list.length) items.push({ sep: true }, { label: t.recentClear, action: () => void saveRecent([]) });
+  const r = btn.getBoundingClientRect();
+  showMenu(items, r.left, r.bottom + 2, { restoreFocus: grid.editor });
+}
+
+const recentBtn = $("btn-recent");
+recentBtn.addEventListener("mousedown", (e) => e.preventDefault()); // グリッドのフォーカスを保つ
+recentBtn.addEventListener("click", () => void showRecentMenu(recentBtn));
 
 async function reopen(opts: { encoding?: string; delimiter?: string }) {
   if (!state.path) return;
@@ -395,6 +484,33 @@ $("st-nl").addEventListener("click", (e) => {
         state.metaDirty = true;
         refreshAll();
       },
+    })),
+  ]);
+});
+
+// ------------------------------------------------------------------ zoom（右下に常時表示）
+
+/** −／＋ボタン：Excel と同じく 10% 刻み */
+function stepZoom(dir: 1 | -1) {
+  const p = Math.round(grid.zoom * 100);
+  const next = dir > 0 ? Math.floor(p / 10) * 10 + 10 : Math.ceil(p / 10) * 10 - 10;
+  grid.setZoom(next / 100);
+}
+
+for (const id of ["zoom-out", "st-zoom", "zoom-in"]) {
+  $(id).addEventListener("mousedown", (e) => e.preventDefault()); // グリッドのフォーカスを保つ
+}
+$("zoom-out").addEventListener("click", () => stepZoom(-1));
+$("zoom-in").addEventListener("click", () => stepZoom(1));
+$("st-zoom").addEventListener("click", (e) => {
+  const cur = Math.round(grid.zoom * 100);
+  statusMenu(e.currentTarget as HTMLElement, [
+    { header: L().zoomHeader },
+    ...ZOOM_PRESETS.map((p) => ({
+      label: `${p}%`,
+      checked: cur === p,
+      shortcut: p === 100 ? "Ctrl+0" : undefined,
+      action: () => grid.setZoom(p / 100),
     })),
   ]);
 });
@@ -657,6 +773,7 @@ window.addEventListener(
     else if (e.key === "F12") toggleFreeze();
     else if (e.key === "F1") void showAbout();
     else if (ctrl && e.key === ",") void openSettings();
+    else if (ctrl && !e.altKey && !e.shiftKey && (e.key === "0" || e.code === "Numpad0")) grid.setZoom(1);
     // Swallow browser shortcuts that make no sense in a desktop app.
     else if (e.key === "F5" || (ctrl && (k === "r" || k === "p" || k === "g" || k === "u" || k === "j"))) {
       /* ignore */
@@ -779,6 +896,7 @@ async function initBrowserPreview() {
   const rows = parseCsv(sample.join("\r\n"), ",");
   doc.load(rows, 6);
   state.path = "C:\\sample\\社員一覧.csv";
+  recentPreview = [state.path, "D:\\GOT\\Recipe\\ARP00001.csv", "C:\\Users\\user\\Documents\\data\\2026\\11月\\売上集計_最終版.csv"];
   grid.reset();
   refreshAll();
   grid.focus();

@@ -19,6 +19,9 @@
           <svg viewBox="0 0 16 16"><path d="M1.5 3.5h4.25l1.5 1.5h7.25v8.5h-13z" /><path d="M1.5 7h13" /></svg>
           <span data-i18n="tbOpen"></span>
         </button>
+        <button class="tb tb-drop" id="btn-recent" data-i18n-title="tbRecentTip" data-i18n-aria="tbRecentTip" aria-haspopup="menu">
+          <svg viewBox="0 0 16 16"><path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg>
+        </button>
         <button class="tb" data-cmd="save" data-i18n-title="tbSaveTip">
           <svg viewBox="0 0 16 16"><path d="M2.5 2.5h9l2 2v9h-11z" /><path d="M5 2.5v3h5.5v-3" /><path d="M5 13.5V9.5h6v4" /></svg>
           <span data-i18n="tbSave"></span>
@@ -72,7 +75,15 @@
         <button class="st-btn" id="st-delim" data-i18n-title="stDelimTip"></button>
         <button class="st-btn" id="st-nl" data-i18n-title="stNewlineTip"></button>
         <button class="st-btn" id="st-enc" data-i18n-title="stEncodingTip"></button>
-        <span id="st-zoom"></span>
+        <div class="st-zoom">
+          <button class="st-btn st-icon" id="zoom-out" data-i18n-title="zoomOutTip">
+            <svg viewBox="0 0 16 16"><path d="M3.5 8h9" /></svg>
+          </button>
+          <button class="st-btn" id="st-zoom" data-i18n-title="zoomTip"></button>
+          <button class="st-btn st-icon" id="zoom-in" data-i18n-title="zoomInTip">
+            <svg viewBox="0 0 16 16"><path d="M3.5 8h9M8 3.5v9" /></svg>
+          </button>
+        </div>
       </footer>
 
       <div id="findbar" hidden>

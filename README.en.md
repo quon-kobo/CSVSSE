@@ -17,11 +17,12 @@ Download `CSVSSE.exe` from [Releases](https://github.com/quon-kobo/CSVSSE/releas
 
 > If Windows shows "Windows protected your PC" (SmartScreen) the first time, click "More info" → "Run anyway". It appears because the exe is not code-signed.
 
-- Open a CSV file: drop it on the exe or the window, or press Ctrl+O
+- Open a CSV file: drop it on the exe or the window, or press Ctrl+O. The ⌄ next to "Open" lists the 10 most recently used files
+- Cells you changed are highlighted in yellow until you save, so you can review your edits before sending the file on
 - **Settings** (toolbar, top right, or Ctrl+,)
   - **Language**: Auto (Japanese on Japanese Windows, English otherwise) / 日本語 / English
   - **File association**: click "Register", then choose CSVSSE and click "Always" in the window that opens. CSV / TSV files then open in CSVSSE on double-click and get their own icon. This is a per-user setting, needs no admin rights, and "Unregister" undoes it.
-- Settings (language, window size, frozen top row, zoom) are stored in `csvsse.settings.json` next to the exe
+- Settings (language, window size, frozen top row, zoom, recent files) are stored in `csvsse.settings.json` next to the exe
 - Requires the Microsoft Edge WebView2 Runtime, which is included with Windows 10 / 11
 
 ### Keyboard shortcuts
@@ -42,9 +43,9 @@ Download `CSVSSE.exe` from [Releases](https://github.com/quon-kobo/CSVSSE/releas
 | Freeze top row | F12 |
 | Settings / About | Ctrl+, / F1 |
 | Fill handle | Drag the ■ at the bottom-right of the selection. Works like Excel: a single number is copied and Ctrl+drag counts up 1, 2, 3…; selecting 1, 2, 3 continues with 4, 5, 6…. The values are previewed while dragging, Ctrl switches mode on the fly, Esc cancels. Double-click fills down to the last row of the neighbouring column. |
-| Zoom | Ctrl+mouse wheel |
+| Zoom | Ctrl+mouse wheel, or − / + at the bottom right (Ctrl+0 for 100%) |
 
-Click the encoding, delimiter or line-ending indicator in the status bar to change them.
+Click the encoding, delimiter or line-ending indicator in the status bar to change them. Click the zoom level to pick 50%–300%. Selecting two or more cells shows their average, count and sum, as in Excel.
 
 ## Development
 

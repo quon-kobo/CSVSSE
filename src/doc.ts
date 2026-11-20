@@ -27,11 +27,14 @@ type Op =
   | { t: "insRows"; at: number; n: number }
   | { t: "delRows"; at: number; removed: string[][] }
   | { t: "insCols"; at: number; n: number }
-  | { t: "delCols"; at: number; n: number; removed: (string[] | null)[]; cols: number };
+  | { t: "delCols"; at: number; n: number; removed: (string[] | null)[]; cols: number; map: number[] };
 
-type Entry = Op & { id: number };
+/** gen = 記録したときの基準の世代（保存をまたいだ元に戻す／やり直しの判定に使う） */
+type Entry = Op & { id: number; gen: number };
 
 const MAX_HISTORY = 200;
+/** 基準時点の値が分からない（削除済みの列）ことを表す印 */
+const UNKNOWN = "\u0000unknown";
 
 function spliceIn<T>(arr: T[], at: number, items: T[]): T[] {
   if (items.length < 10000) {
@@ -48,6 +51,19 @@ export class Doc {
   private redoStack: Entry[] = [];
   private nextId = 1;
   private savedId = 0;
+
+  // ---- 変更したセルの追跡（最後に開いた／保存した時点＝「基準」との比較）
+  // 行は配列のまま挿入・削除・復元されるので、行配列そのものをキーにする。
+  /** 基準を取り直すたびに増える */
+  private gen = 0;
+  /** 基準のあとで増えた行（空でないセルはすべて変更扱い） */
+  private created = new WeakSet<string[]>();
+  /** 初めて書き換えた行の、基準時点の値（基準時点の列番号で並ぶ） */
+  private orig = new WeakMap<string[], string[]>();
+  /** 今の列 → 基準時点の列（-1 = 基準のあとで増えた列）。null = 列の挿入・削除なし */
+  private colMap: number[] | null = null;
+  /** 基準時点の列数 */
+  private baseCols = 0;
 
   get rowCount(): number {
     return this.rows.length;
@@ -67,6 +83,7 @@ export class Doc {
   }
   markSaved(): void {
     this.savedId = this.topId();
+    this.resetBaseline();
   }
 
   load(rows: string[][], colCount: number): void {
@@ -75,6 +92,70 @@ export class Doc {
     this.undoStack = [];
     this.redoStack = [];
     this.savedId = 0;
+    this.resetBaseline();
+  }
+
+  private resetBaseline(): void {
+    this.gen++;
+    this.baseCols = this.colCount;
+    this.created = new WeakSet();
+    this.orig = new WeakMap();
+    this.colMap = null;
+  }
+
+  /** 今の列番号を基準時点の列番号にする（-1 = 基準のあとで増えた列） */
+  private origCol(c: number): number {
+    const m = this.colMap;
+    if (!m) return c;
+    return c < m.length ? m[c] : -1;
+  }
+
+  /** 最後に開いた／保存した時点から値が変わったセルか */
+  isChanged(r: number, c: number): boolean {
+    const row = this.rows[r];
+    if (!row) return false;
+    const v = row[c] ?? "";
+    if (this.created.has(row)) return v !== "";
+    const oc = this.origCol(c);
+    if (oc < 0) return v !== "";
+    const o = this.orig.get(row);
+    if (!o || o[oc] === UNKNOWN) return false;
+    return (o[oc] ?? "") !== v;
+  }
+
+  /** 行を初めて書き換える前に、基準時点の値を控えておく */
+  private keepOriginal(row: string[]): void {
+    if (this.created.has(row) || this.orig.has(row)) return;
+    let o: string[];
+    if (!this.colMap) o = row.slice();
+    else {
+      // 削除済みの列は値が分からないので UNKNOWN にしておき、列の削除を元に戻したときに埋める
+      o = new Array<string>(this.baseCols).fill(UNKNOWN);
+      const n = Math.max(row.length, this.colMap.length);
+      for (let c = 0; c < n; c++) {
+        const oc = this.origCol(c);
+        if (oc >= 0) o[oc] = row[c] ?? "";
+      }
+    }
+    this.orig.set(row, o);
+  }
+
+  private ensureColMap(len: number): number[] {
+    if (!this.colMap) {
+      const n = Math.max(this.colCount, len);
+      this.colMap = Array.from({ length: n }, (_, i) => i);
+    }
+    while (this.colMap.length < len) this.colMap.push(-1);
+    return this.colMap;
+  }
+
+  private mapInsert(at: number, entries: number[]): void {
+    this.ensureColMap(at).splice(at, 0, ...entries);
+  }
+
+  private mapRemove(at: number, n: number): number[] {
+    const removed = this.ensureColMap(at + n).splice(at, n);
+    return removed;
   }
 
   get(r: number, c: number): string {
@@ -88,9 +169,15 @@ export class Doc {
   private put(r: number, c: number, v: string): void {
     if (r >= this.rows.length) {
       if (v === "") return;
-      while (this.rows.length <= r) this.rows.push([]);
+      while (this.rows.length <= r) {
+        const add: string[] = [];
+        this.created.add(add);
+        this.rows.push(add);
+      }
     }
     const row = this.rows[r];
+    if ((row[c] ?? "") === v) return;
+    this.keepOriginal(row);
     if (c >= row.length) {
       if (v === "") return;
       while (row.length < c) row.push("");
@@ -100,7 +187,7 @@ export class Doc {
   }
 
   private record(op: Op): void {
-    this.undoStack.push({ ...op, id: this.nextId++ } as Entry);
+    this.undoStack.push({ ...op, id: this.nextId++, gen: this.gen } as Entry);
     if (this.undoStack.length > MAX_HISTORY) this.undoStack.shift();
     this.redoStack = [];
   }
@@ -166,7 +253,11 @@ export class Doc {
   }
   private doInsertRows(at: number, n: number): void {
     const add: string[][] = [];
-    for (let i = 0; i < n; i++) add.push([]);
+    for (let i = 0; i < n; i++) {
+      const row: string[] = [];
+      this.created.add(row);
+      add.push(row);
+    }
     this.rows = spliceIn(this.rows, at, add);
   }
 
@@ -186,6 +277,8 @@ export class Doc {
   private doInsertCols(at: number, n: number): void {
     const blank = new Array<string>(n).fill("");
     for (const row of this.rows) if (row.length > at) row.splice(at, 0, ...blank);
+    // 列の対応表は colCount を変える前に更新する（null からの作成が今の列数を使うため）
+    this.mapInsert(at, new Array<number>(n).fill(-1));
     this.colCount += n;
   }
 
@@ -193,8 +286,9 @@ export class Doc {
     if (at >= this.colCount || n <= 0) return false;
     const cols = this.colCount;
     const removed = this.rows.map((row) => (row.length > at ? row.splice(at, n) : null));
+    const map = this.mapRemove(at, n);
     this.colCount = cols - Math.min(n, cols - at);
-    this.record({ t: "delCols", at, n, removed, cols });
+    this.record({ t: "delCols", at, n, removed, cols, map });
     return true;
   }
 
@@ -218,7 +312,7 @@ export class Doc {
     return Math.max(this.colCount, 1) - 1;
   }
 
-  private forward(op: Op): HistoryResult {
+  private forward(op: Entry): HistoryResult {
     switch (op.t) {
       case "set": {
         this.applySet(op.r, op.c, op.after);
@@ -238,12 +332,14 @@ export class Doc {
         return { rect: { r0: 0, c0: op.at, r1: 0, c1: op.at + op.n - 1 }, whole: "cols", colShift: { at: op.at, n: op.n } };
       case "delCols":
         for (const row of this.rows) if (row.length > op.at) row.splice(op.at, op.n);
+        this.mapRemove(op.at, op.n);
         this.colCount = op.cols - Math.min(op.n, op.cols - op.at);
         return { rect: { r0: 0, c0: op.at, r1: 0, c1: op.at }, whole: "cols", colShift: { at: op.at, n: -op.n } };
     }
   }
 
-  private revert(op: Op): HistoryResult {
+  private revert(op: Entry): HistoryResult {
+    const sameGen = op.gen === this.gen;
     switch (op.t) {
       case "set":
         this.applySet(op.r, op.c, op.before);
@@ -258,19 +354,38 @@ export class Doc {
         return { rect: { r0: op.at, c0: 0, r1: op.at, c1: this.fullCols() }, whole: "rows" };
       case "delRows":
         this.rows = spliceIn(this.rows, op.at, op.removed);
+        // 保存をまたいで復元した行は、保存したファイルにない行なので「増えた行」扱い
+        if (!sameGen) for (const row of op.removed) this.created.add(row);
         return {
           rect: { r0: op.at, c0: 0, r1: op.at + op.removed.length - 1, c1: this.fullCols() },
           whole: "rows",
         };
       case "insCols":
         for (const row of this.rows) if (row.length > op.at) row.splice(op.at, op.n);
+        this.mapRemove(op.at, op.n);
         this.colCount -= op.n;
         return { rect: { r0: 0, c0: op.at, r1: 0, c1: op.at }, whole: "cols", colShift: { at: op.at, n: -op.n } };
       case "delCols":
         op.removed.forEach((seg, r) => {
           if (seg) this.rows[r].splice(op.at, 0, ...seg);
         });
-        this.colCount = op.cols;
+        {
+          // 保存をまたいでいなければ元の列に戻す。またいでいれば「増えた列」扱い
+          const map = new Array<number>(op.n).fill(-1);
+          if (sameGen) op.map.forEach((oc, j) => j < op.n && (map[j] = oc));
+          this.mapInsert(op.at, map);
+          this.colCount = op.cols;
+          // 列を消したあとで書き換えた行は、消した列の基準値が UNKNOWN なので、戻した値で埋める
+          if (sameGen) {
+            op.removed.forEach((seg, r) => {
+              const o = this.orig.get(this.rows[r]);
+              if (!o) return;
+              map.forEach((oc, j) => {
+                if (oc >= 0 && o[oc] === UNKNOWN) o[oc] = seg?.[j] ?? "";
+              });
+            });
+          }
+        }
         return {
           rect: { r0: 0, c0: op.at, r1: 0, c1: op.at + op.n - 1 },
           whole: "cols",

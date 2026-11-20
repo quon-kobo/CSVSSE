@@ -81,6 +81,7 @@ interface Theme {
   accentText: string;
   selFill: string;
   freezeLine: string;
+  changedFill: string;
 }
 
 type Mode = "nav" | "enter" | "edit";
@@ -372,6 +373,7 @@ export class Grid {
       accentText: v("--accent-text"),
       selFill: v("--sel-fill"),
       freezeLine: v("--freeze-line"),
+      changedFill: v("--changed-fill"),
     };
   }
 
@@ -535,12 +537,30 @@ export class Grid {
     const px1 = this.colX(c1 + 1, v.sx);
     const py0 = this.rowY(R.r0, frozen, v.sy);
     const py1 = this.rowY(r1 + 1, frozen, v.sy);
+    // 最後に開いた／保存した時点から変わったセルの背景
+    ctx.fillStyle = t.changedFill;
+    for (let r = rA; r <= rB; r++) {
+      if (!this.doc.rows[r]) continue;
+      for (let c = v.cA; c <= v.cB; c++) {
+        if (this.doc.isChanged(r, c)) {
+          ctx.fillRect(this.colX(c, v.sx), this.rowY(r, frozen, v.sy), this.colW(c), rh);
+        }
+      }
+    }
+
     const multi = R.r0 !== r1 || R.c0 !== c1;
     if (multi) {
       ctx.fillStyle = t.selFill;
       ctx.fillRect(px0, py0, px1 - px0, py1 - py0);
+      // アクティブセルは選択の色を付けない（変更セルならその色に戻す）
+      const ax = this.colX(s.ac, v.sx);
+      const ay = this.rowY(s.ar, frozen, v.sy);
       ctx.fillStyle = t.bg;
-      ctx.fillRect(this.colX(s.ac, v.sx), this.rowY(s.ar, frozen, v.sy), this.colW(s.ac), rh);
+      ctx.fillRect(ax, ay, this.colW(s.ac), rh);
+      if (this.doc.isChanged(s.ar, s.ac)) {
+        ctx.fillStyle = t.changedFill;
+        ctx.fillRect(ax, ay, this.colW(s.ac), rh);
+      }
     }
 
     // Grid lines
