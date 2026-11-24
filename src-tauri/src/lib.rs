@@ -269,6 +269,19 @@ fn encode_legacy(enc: &'static Encoding, text: &str, force: bool) -> Result<Vec<
     if bad.is_empty() { Ok(out) } else { Err(EncodeError::Unmappable(bad)) }
 }
 
+/// Returns the byte length of `text` in `label` (excluding any BOM).
+fn encoded_byte_len(text: &str, label: &str) -> usize {
+    if text.is_empty() {
+        return 0;
+    }
+    encode(text, label, true).map(|(_, data)| data.len()).unwrap_or(text.len())
+}
+
+#[tauri::command]
+fn byte_length(text: String, encoding: String) -> usize {
+    encoded_byte_len(&text, &encoding)
+}
+
 // ---------------------------------------------------------------- file commands
 
 #[tauri::command]
@@ -424,6 +437,18 @@ mod tests {
     }
 
     #[test]
+    fn byte_length_by_encoding() {
+        assert_eq!(encoded_byte_len("", "Shift_JIS"), 0);
+        assert_eq!(encoded_byte_len("ABC123", "Shift_JIS"), 6);
+        assert_eq!(encoded_byte_len("山田", "Shift_JIS"), 4);
+        assert_eq!(encoded_byte_len("山田", "UTF-8"), 6);
+        assert_eq!(encoded_byte_len("山田", "UTF-8 BOM"), 6);
+        assert_eq!(encoded_byte_len("山田", "UTF-16LE"), 4);
+        assert_eq!(encoded_byte_len("ｶﾅ", "Shift_JIS"), 2);
+        assert_eq!(encoded_byte_len("A😀B", "Shift_JIS"), 3);
+    }
+
+    #[test]
     fn frame_round_trip() {
         let packed = pack(&json!({"path": "C:\\a.csv"}), b"xyz");
         let (h, p) = unpack(&packed).unwrap();
@@ -457,7 +482,8 @@ pub fn run() {
             set_association,
             choose_default_app,
             os_language,
-            set_language
+            set_language,
+            byte_length
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -45,7 +45,7 @@ Download `CSVSSE.exe` from [Releases](https://github.com/quon-kobo/CSVSSE/releas
 | Fill handle | Drag the ■ at the bottom-right of the selection. Works like Excel: a single number is copied and Ctrl+drag counts up 1, 2, 3…; selecting 1, 2, 3 continues with 4, 5, 6…. The values are previewed while dragging, Ctrl switches mode on the fly, Esc cancels. Double-click fills down to the last row of the neighbouring column. |
 | Zoom | Ctrl+mouse wheel, or − / + at the bottom right (Ctrl+0 for 100%) |
 
-Click the encoding, delimiter or line-ending indicator in the status bar to change them. Click the zoom level to pick 50%–300%. Selecting two or more cells shows their average, count and sum, as in Excel.
+Click the encoding, delimiter or line-ending indicator in the status bar to change them. When a single cell is selected or being edited, its byte length in the current encoding is shown in real time next to the encoding indicator. Click the zoom level to pick 50%–300%. Selecting two or more cells shows their average, count and sum, as in Excel.
 
 ## Development
 

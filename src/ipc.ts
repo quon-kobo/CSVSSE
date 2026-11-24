@@ -34,3 +34,31 @@ export interface WriteResult {
 export function writeFile(path: string, text: string, encoding: string, force: boolean): Promise<WriteResult> {
   return invoke<WriteResult>("write_file", pack({ path, encoding, force }, enc.encode(text)));
 }
+
+/** Synchronous byte length for Unicode encodings, or null when the Rust encoder is needed. */
+export function fastByteLength(text: string, encoding: string): number | null {
+  if (text === "") return 0;
+  if (encoding === "UTF-8" || encoding === "UTF-8 BOM") return enc.encode(text).length;
+  if (encoding === "UTF-16LE" || encoding === "UTF-16BE") return text.length * 2;
+  return null;
+}
+
+/** Fallback estimate for browser preview when Tauri is unavailable. */
+function fallbackByteLength(text: string, encoding: string): number {
+  if (encoding === "Shift_JIS") {
+    let n = 0;
+    for (const ch of text) {
+      const cp = ch.codePointAt(0)!;
+      n += cp <= 0x7f || (cp >= 0xff61 && cp <= 0xff9f) ? 1 : 2;
+    }
+    return n;
+  }
+  return enc.encode(text).length;
+}
+
+export async function byteLength(text: string, encoding: string): Promise<number> {
+  const fast = fastByteLength(text, encoding);
+  if (fast !== null) return fast;
+  if (!IN_TAURI) return fallbackByteLength(text, encoding);
+  return invoke<number>("byte_length", { text, encoding });
+}

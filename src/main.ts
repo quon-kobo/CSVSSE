@@ -6,7 +6,7 @@ import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { Doc } from "./doc";
 import { Grid, colName, isNumeric, parseRef } from "./grid";
 import { detectDelimiter, detectNewline, parseCsv, serializeCsv } from "./csv";
-import { IN_TAURI, readFile, writeFile } from "./ipc";
+import { IN_TAURI, byteLength, fastByteLength, readFile, writeFile } from "./ipc";
 import { showAbout, showSettings } from "./about";
 import { L, onLangChange, resolveLang, setLang, type LangPref } from "./i18n";
 import { alertMsg, ask, hideBusy, isModalOpen, showBusy, showMenu, yieldToPaint, type MenuItem } from "./ui";
@@ -71,6 +71,7 @@ const grid = new Grid($("grid"), doc, {
   selectionChanged: () => refreshSelection(),
   editing: (text) => {
     if (document.activeElement !== formula) formula.value = text;
+    updateCellBytes(text);
   },
   contextMenu: (x, y) => openContextMenu(x, y),
   writeClipboard: (t) => (IN_TAURI ? writeText(t) : navigator.clipboard.writeText(t)),
@@ -110,6 +111,24 @@ function updateButtons() {
   $("btn-freeze").setAttribute("aria-pressed", String(grid.freezeTop));
 }
 
+let bytesSeq = 0;
+function updateCellBytes(text: string | null) {
+  const seq = ++bytesSeq;
+  const el = $("st-bytes");
+  if (text === null) {
+    el.textContent = "";
+    return;
+  }
+  const fast = fastByteLength(text, state.encoding);
+  if (fast !== null) {
+    el.textContent = L().bytes(fast.toLocaleString());
+    return;
+  }
+  void byteLength(text, state.encoding).then((n) => {
+    if (seq === bytesSeq) el.textContent = L().bytes(n.toLocaleString());
+  });
+}
+
 let statsTimer = 0;
 function refreshSelection() {
   const s = grid.sel;
@@ -121,6 +140,17 @@ function refreshSelection() {
       : `${colName(R.c0)}${R.r0 + 1}:${colName(R.c1)}${R.r1 + 1}`;
   }
   if (document.activeElement !== formula && grid.mode === "nav") formula.value = doc.get(s.ar, s.ac);
+  if (single) {
+    const text =
+      grid.mode !== "nav"
+        ? grid.editor.value
+        : document.activeElement === formula
+          ? formula.value
+          : doc.get(s.ar, s.ac);
+    updateCellBytes(text);
+  } else {
+    updateCellBytes(null);
+  }
   clearTimeout(statsTimer);
   statsTimer = window.setTimeout(() => ($("st-sel").textContent = selectionStats()), 60);
 }
@@ -655,11 +685,13 @@ function commitFormula() {
 formula.addEventListener("focus", () => {
   if (grid.mode !== "nav") grid.commitEdit();
 });
+formula.addEventListener("input", () => updateCellBytes(formula.value));
 formula.addEventListener("keydown", (e) => {
   if (e.isComposing || e.keyCode === 229) return;
   if (e.key === "Enter" && e.altKey) {
     e.preventDefault();
     formula.setRangeText("\n", formula.selectionStart, formula.selectionEnd, "end");
+    updateCellBytes(formula.value);
   } else if (e.key === "Enter" || e.key === "Tab") {
     e.preventDefault();
     commitFormula();
@@ -669,6 +701,7 @@ formula.addEventListener("keydown", (e) => {
   } else if (e.key === "Escape") {
     e.preventDefault();
     formula.value = doc.get(grid.sel.ar, grid.sel.ac);
+    updateCellBytes(formula.value);
     grid.focus();
   }
 });
