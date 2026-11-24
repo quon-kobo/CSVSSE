@@ -78,3 +78,5 @@ npm run icon:file   # src-tauri\file-icon.svg から CSV ファイル用アイ�
 ## ライセンス
 
 [MIT License](LICENSE) © 2026 QUON KOBO
+
+無保証です。使用によって生じた損害については、責任を負いかねます。

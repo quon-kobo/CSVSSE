@@ -78,3 +78,5 @@ npm run icon:file   # regenerate the CSV file icon (csv-file.ico) from src-tauri
 ## License
 
 [MIT License](LICENSE) © 2026 QUON KOBO
+
+Provided as is, without warranty. QUON KOBO is not liable for any damage resulting from its use.
