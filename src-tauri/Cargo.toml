@@ -1,6 +1,6 @@
 [package]
 name = "csvsse"
-version = "0.1.7"
+version = "0.1.8"
 description = "CSVSSE - simple CSV editor"
 authors = ["QUON KOBO"]
 license = "MIT"
@@ -22,10 +22,22 @@ tauri-plugin-opener = "2"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"
-windows-sys = { version = "0.61", features = ["Win32_UI_Shell", "Win32_Globalization"] }
+windows-sys = { version = "0.61", features = [
+  "Win32_UI_Shell",
+  "Win32_Globalization",
+  "Win32_Foundation",
+  "Win32_Networking_WinHttp",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Registry",
+  "Win32_System_Threading",
+  "Win32_UI_WindowsAndMessaging",
+] }
 serde_json = "1"
 encoding_rs = "0.8"
 chardetng = "0.1"
+# Update signature check (minisign / `tauri signer` format)
+minisign-verify = "0.2"
+base64 = "0.21"
 
 # Size-oriented release profile: https://tauri.app/concept/size/
 [profile.release]

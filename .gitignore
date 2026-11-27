@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Signing keys
+*.key
+
 # Local tool settings
 .claude/
 

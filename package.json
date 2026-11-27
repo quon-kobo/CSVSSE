@@ -1,7 +1,7 @@
 {
   "name": "csvsse",
   "private": true,
-  "version": "0.1.7",
+  "version": "0.1.8",
   "author": "QUON KOBO",
   "license": "MIT",
   "type": "module",
@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "app": "tauri dev",
-    "build:exe": "tauri build --no-bundle",    "icon": "tauri icon src-tauri/app-icon.svg",
+    "build:exe": "tauri build --no-bundle",
+    "sign": "node scripts/sign-release.mjs",
+    "icon": "tauri icon src-tauri/app-icon.svg",
     "icon:file": "tauri icon src-tauri/file-icon.svg -o .icon-tmp && node -e \"require('fs').copyFileSync('.icon-tmp/icon.ico','src-tauri/icons/csv-file.ico');require('fs').rmSync('.icon-tmp',{recursive:true})\""
   },
   "dependencies": {

@@ -22,7 +22,8 @@ Download `CSVSSE.exe` from [Releases](https://github.com/quon-kobo/CSVSSE/releas
 - **Settings** (toolbar, top right, or Ctrl+,)
   - **Language**: Auto (Japanese on Japanese Windows, English otherwise) / 日本語 / English
   - **File association**: click "Register", then choose CSVSSE and click "Always" in the window that opens. CSV / TSV files then open in CSVSSE on double-click and get their own icon. This is a per-user setting, needs no admin rights, and "Unregister" undoes it.
-- Settings (language, window size, frozen top row, zoom, recent files) are stored in `csvsse.settings.json` next to the exe
+  - **Updates**: once a day at startup, CSVSSE asks GitHub whether a new version exists. If so, "Update available" appears in the toolbar; clicking it downloads the new exe, checks its signature, replaces the exe and restarts. If the exe lives in a folder you cannot write to (such as Program Files), Windows asks for admin rights for the replacement only. Nothing is shown without an internet connection. You can turn the check off here or run it with "Check now". Only the version query is sent, never your files.
+- Settings (language, window size, frozen panes, zoom, recent files, update check) are stored in `csvsse.settings.json` next to the exe. If the exe is in a folder you cannot write to (such as Program Files), they go to `%APPDATA%\CSVSSE\csvsse.settings.json` instead
 - Requires the Microsoft Edge WebView2 Runtime, which is included with Windows 10 / 11
 
 ### Keyboard shortcuts
@@ -40,7 +41,7 @@ Download `CSVSSE.exe` from [Releases](https://github.com/quon-kobo/CSVSSE/releas
 | Select column / row | Ctrl+Space / Shift+Space |
 | Insert / delete rows | Ctrl++ / Ctrl+- |
 | Find / Replace | Ctrl+F / Ctrl+H (find next: F3) |
-| Freeze top row | F12 |
+| Freeze panes (rows above and columns left of the selected cell; the top row when A1 is selected; press again to unfreeze) | F12 |
 | Settings / About | Ctrl+, / F1 |
 | Fill handle | Drag the ■ at the bottom-right of the selection. Works like Excel: a single number is copied and Ctrl+drag counts up 1, 2, 3…; selecting 1, 2, 3 continues with 4, 5, 6…. The values are previewed while dragging, Ctrl switches mode on the fly, Esc cancels. Double-click fills down to the last row of the neighbouring column. |
 | Zoom | Ctrl+mouse wheel, or − / + at the bottom right (Ctrl+0 for 100%) |
@@ -67,6 +68,7 @@ npm run icon:file   # regenerate the CSV file icon (csv-file.ico) from src-tauri
 |---|---|
 | `src-tauri/src/lib.rs` | File I/O, encoding detection and conversion, settings, OS language |
 | `src-tauri/src/assoc.rs` | File association (per-user registry) |
+| `src-tauri/src/update.rs` | Update check, download, signature check, exe replacement |
 | `src/grid.ts` | Canvas-rendered grid (scrolling, selection, editing, clipboard) |
 | `src/doc.ts` | Data model and undo / redo history |
 | `src/csv.ts` | CSV parsing and writing, delimiter and line-ending detection |

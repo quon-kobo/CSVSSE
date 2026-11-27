@@ -93,11 +93,21 @@ interface Hit {
   r: number;
   c: number;
 }
-interface View {
-  sx: number;
-  sy: number;
+/**
+ * One of up to four panes (frozen corner / frozen rows / frozen columns / scrolling body):
+ * its screen rectangle, the rows and columns drawn in it, and its scroll offsets (0 if frozen).
+ */
+interface Pane {
+  x0: number;
+  x1: number;
   cA: number;
   cB: number;
+  sx: number;
+  y0: number;
+  y1: number;
+  rA: number;
+  rB: number;
+  sy: number;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
@@ -111,7 +121,9 @@ export class Grid {
   private theme!: Theme;
 
   zoom = 1;
-  freezeTop = false;
+  /** Rows above / columns left of the scrolling area that stay in view (Excel's "Freeze Panes"). */
+  frozenRows = 0;
+  frozenCols = 0;
   mode: Mode = "nav";
   /** active cell (ar, ac), anchor (anR, anC), moving corner (fR, fC) */
   sel = { ar: 0, ac: 0, anR: 0, anC: 0, fR: 0, fC: 0, allRows: false, allCols: false };
@@ -231,11 +243,17 @@ export class Grid {
   private font(weight = 400) {
     return `${weight} ${this.fontPx}px ${FONT_FAMILY}`;
   }
+  /** First scrolling row. */
   private get s0() {
-    return this.freezeTop ? 1 : 0;
+    return this.frozenRows;
   }
+  /** Screen y where the scrolling rows start. */
   private get top() {
-    return this.hdrH + (this.freezeTop ? this.rowH : 0);
+    return this.hdrH + this.frozenRows * this.rowH;
+  }
+  /** Screen x where the scrolling columns start. */
+  private get left() {
+    return this.rowHdrW + this.xs[Math.min(this.frozenCols, this.xs.length - 1)];
   }
   private get dispRows() {
     return Math.max(this.doc.rowCount, this.reachR + 1) + EXTRA_ROWS;
@@ -322,11 +340,25 @@ export class Grid {
     }
   }
 
-  private rowY(r: number, frozen: boolean, sy: number) {
-    return frozen ? this.hdrH + r * this.rowH : this.top + (r - this.s0) * this.rowH - sy;
+  // Screen position of a row / column. Pass a scroll offset of 0 for frozen rows / columns:
+  // the scrolling area simply continues where the frozen one ends.
+  private rowY(r: number, sy: number) {
+    return this.hdrH + r * this.rowH - sy;
   }
   private colX(c: number, sx: number) {
     return this.rowHdrW + this.xs[Math.min(c, this.xs.length - 1)] - sx;
+  }
+  /** Scroll offsets that apply to row r / column c (0 when it is frozen). */
+  private syOf(r: number) {
+    return r < this.frozenRows ? 0 : this.scrollY();
+  }
+  private sxOf(c: number) {
+    return c < this.frozenCols ? 0 : this.scroller.scrollLeft;
+  }
+  /** Leftmost column visible in the scrolling area. */
+  private firstVisibleCol() {
+    const fc = Math.min(this.frozenCols, this.xs.length - 1);
+    return Math.max(fc, this.colAt(this.xs[fc] + this.scroller.scrollLeft));
   }
 
   // ------------------------------------------------------------ public API
@@ -395,22 +427,40 @@ export class Grid {
     this.cb.selectionChanged();
   }
 
-  setFreeze(on: boolean) {
-    this.freezeTop = on;
+  /**
+   * Freezes the first `rows` rows and `cols` columns (0, 0 unfreezes). Unless `force` is set,
+   * refuses (returns false) when the frozen area would leave almost no room to scroll.
+   */
+  setFreeze(rows: number, cols: number, force = false): boolean {
+    rows = clamp(Math.floor(rows), 0, MAX_ROW);
+    cols = clamp(Math.floor(cols), 0, MAX_COL);
+    if (!force && (rows || cols)) {
+      this.reachC = Math.max(this.reachC, cols);
+      this.updateSpacer();
+      const h = rows * this.rowH;
+      const w = this.xs[Math.min(cols, this.xs.length - 1)];
+      if (h > this.H - this.hdrH - 3 * this.rowH || w > this.W - this.rowHdrW - 120 * this.zoom) return false;
+    }
+    this.frozenRows = rows;
+    this.frozenCols = cols;
     this.spacerKey = "";
+    this.updateSpacer();
+    // Keep the active cell on screen (it may now sit just below / right of the frozen area).
+    this.scrollIntoView(this.sel.ar, this.sel.ac);
     this.layout();
+    return true;
   }
 
   setZoom(z: number, silent = false) {
     z = Math.round(clamp(z, 0.5, 3) * 100) / 100;
     if (z === this.zoom) return;
     const topRow = this.s0 + Math.floor(this.scrollY() / this.rowH);
-    const leftCol = this.colAt(this.scroller.scrollLeft);
+    const leftCol = this.firstVisibleCol();
     this.zoom = z;
     this.spacerKey = "";
     this.updateSpacer();
     this.setScrollY((topRow - this.s0) * this.rowH);
-    this.scroller.scrollLeft = this.xs[leftCol];
+    this.scroller.scrollLeft = this.xs[leftCol] - this.xs[Math.min(this.frozenCols, this.xs.length - 1)];
     this.layout();
     if (!silent) this.cb.zoomChanged(z);
   }
@@ -478,30 +528,37 @@ export class Grid {
     const hh = this.hdrH;
     const rw = this.rowHdrW;
     const top = this.top;
+    const left = this.left;
     const sx = this.scroller.scrollLeft;
     const sy = this.scrollY();
-    const xs = this.xs;
-    const nCols = xs.length - 1;
+    const nCols = this.xs.length - 1;
     const nRows = this.dispRows;
+    const fr = Math.min(this.frozenRows, nRows);
+    const fc = Math.min(this.frozenCols, nCols);
 
-    const cA = this.colAt(sx);
+    const cA = Math.min(nCols - 1, this.firstVisibleCol());
     let cB = cA;
-    while (cB + 1 < nCols && xs[cB + 1] - sx < W - rw) cB++;
+    while (cB + 1 < nCols && this.colX(cB + 1, sx) < W) cB++;
     const rA = Math.min(nRows - 1, this.s0 + Math.floor(sy / rh));
     let rB = rA;
-    while (rB + 1 < nRows && this.rowY(rB + 1, false, sy) < H) rB++;
+    while (rB + 1 < nRows && this.rowY(rB + 1, sy) < H) rB++;
 
-    const v: View = { sx, sy, cA, cB };
-    this.drawBody(v, false, top, H, rA, rB);
-    if (this.freezeTop) this.drawBody(v, true, hh, top, 0, 0);
+    // Scrolling body, then the frozen rows (top), frozen columns (left) and their corner.
+    const body: Pane = { x0: left, x1: W, cA, cB, sx, y0: top, y1: H, rA, rB, sy };
+    const frozenRows: Pane = { ...body, y0: hh, y1: top, rA: 0, rB: fr - 1, sy: 0 };
+    const frozenCols: Pane = { ...body, x0: rw, x1: left, cA: 0, cB: fc - 1, sx: 0 };
+    this.drawBody(body);
+    if (fr) this.drawBody(frozenRows);
+    if (fc) this.drawBody(frozenCols);
+    if (fr && fc) this.drawBody({ ...frozenCols, y0: hh, y1: top, rA: 0, rB: fr - 1, sy: 0 });
     this.drawFillHandle();
-    this.drawColHeader(v);
-    this.drawRowHeader(v, false, top, H, rA, rB);
-    if (this.freezeTop) {
-      this.drawRowHeader(v, true, hh, top, 0, 0);
-      ctx.fillStyle = t.freezeLine;
-      ctx.fillRect(0, this.snap(top) - this.lw, W, this.lw * 2);
-    }
+    this.drawColHeader(body);
+    if (fc) this.drawColHeader(frozenCols);
+    this.drawRowHeader(body);
+    if (fr) this.drawRowHeader(frozenRows);
+    ctx.fillStyle = t.freezeLine;
+    if (fr) ctx.fillRect(0, this.snap(top) - this.lw, W, this.lw * 2);
+    if (fc) ctx.fillRect(this.snap(left) - this.lw, 0, this.lw * 2, H);
 
     // Corner (select all)
     const lw = this.lw;
@@ -519,14 +576,14 @@ export class Grid {
     ctx.fill();
   }
 
-  private drawBody(v: View, frozen: boolean, y0: number, y1: number, rA: number, rB: number) {
-    const { ctx, theme: t, W } = this;
-    const rw = this.rowHdrW;
+  private drawBody(v: Pane) {
+    const { ctx, theme: t } = this;
     const rh = this.rowH;
-    if (y1 <= y0) return;
+    const { x0: X0, x1: X1, y0, y1, rA, rB } = v;
+    if (y1 <= y0 || X1 <= X0 || rB < rA || v.cB < v.cA) return;
     ctx.save();
     ctx.beginPath();
-    ctx.rect(rw, y0, W - rw, y1 - y0);
+    ctx.rect(X0, y0, X1 - X0, y1 - y0);
     ctx.clip();
 
     const s = this.sel;
@@ -535,15 +592,15 @@ export class Grid {
     const c1 = s.allCols ? this.xs.length - 2 : R.c1;
     const px0 = this.colX(R.c0, v.sx);
     const px1 = this.colX(c1 + 1, v.sx);
-    const py0 = this.rowY(R.r0, frozen, v.sy);
-    const py1 = this.rowY(r1 + 1, frozen, v.sy);
+    const py0 = this.rowY(R.r0, v.sy);
+    const py1 = this.rowY(r1 + 1, v.sy);
     // 最後に開いた／保存した時点から変わったセルの背景
     ctx.fillStyle = t.changedFill;
     for (let r = rA; r <= rB; r++) {
       if (!this.doc.rows[r]) continue;
       for (let c = v.cA; c <= v.cB; c++) {
         if (this.doc.isChanged(r, c)) {
-          ctx.fillRect(this.colX(c, v.sx), this.rowY(r, frozen, v.sy), this.colW(c), rh);
+          ctx.fillRect(this.colX(c, v.sx), this.rowY(r, v.sy), this.colW(c), rh);
         }
       }
     }
@@ -554,7 +611,7 @@ export class Grid {
       ctx.fillRect(px0, py0, px1 - px0, py1 - py0);
       // アクティブセルは選択の色を付けない（変更セルならその色に戻す）
       const ax = this.colX(s.ac, v.sx);
-      const ay = this.rowY(s.ar, frozen, v.sy);
+      const ay = this.rowY(s.ar, v.sy);
       ctx.fillStyle = t.bg;
       ctx.fillRect(ax, ay, this.colW(s.ac), rh);
       if (this.doc.isChanged(s.ar, s.ac)) {
@@ -570,7 +627,7 @@ export class Grid {
       ctx.fillRect(this.snap(this.colX(c + 1, v.sx)) - lw, y0, lw, y1 - y0);
     }
     for (let r = rA; r <= rB; r++) {
-      ctx.fillRect(rw, this.snap(this.rowY(r + 1, frozen, v.sy)) - lw, W - rw, lw);
+      ctx.fillRect(X0, this.snap(this.rowY(r + 1, v.sy)) - lw, X1 - X0, lw);
     }
 
     // Fill-handle drag: tint the cells that will be filled and show their future values.
@@ -579,8 +636,8 @@ export class Grid {
     if (PT) {
       ctx.fillStyle = t.selFill;
       const x0 = this.colX(PT.c0, v.sx);
-      const yA = this.rowY(PT.r0, frozen, v.sy);
-      ctx.fillRect(x0, yA, this.colX(PT.c1 + 1, v.sx) - x0, this.rowY(PT.r1 + 1, frozen, v.sy) - yA);
+      const yA = this.rowY(PT.r0, v.sy);
+      ctx.fillRect(x0, yA, this.colX(PT.c1 + 1, v.sx) - x0, this.rowY(PT.r1 + 1, v.sy) - yA);
     }
 
     // Text
@@ -594,7 +651,7 @@ export class Grid {
       const row = this.doc.rows[r];
       const inT = !!PT && r >= PT.r0 && r <= PT.r1;
       if (!row && !inT) continue;
-      const y = this.rowY(r, frozen, v.sy);
+      const y = this.rowY(r, v.sy);
       const ty = y + rh / 2 + 1;
       for (let c = v.cA; c <= v.cB; c++) {
         const isPreview = inT && c >= PT!.c0 && c <= PT!.c1;
@@ -631,8 +688,8 @@ export class Grid {
       const C = this.copyRect;
       const x0 = this.colX(C.c0, v.sx);
       const x1 = this.colX(C.c1 + 1, v.sx);
-      const yA = this.rowY(C.r0, frozen, v.sy);
-      const yB = this.rowY(C.r1 + 1, frozen, v.sy);
+      const yA = this.rowY(C.r0, v.sy);
+      const yB = this.rowY(C.r1 + 1, v.sy);
       ctx.setLineDash([5, 3]);
       ctx.strokeStyle = t.accent;
       ctx.lineWidth = 1.5;
@@ -651,8 +708,8 @@ export class Grid {
       const T = this.fill.target;
       const x0 = this.colX(Math.min(S.c0, T.c0), v.sx);
       const x1 = this.colX(Math.max(S.c1, T.c1) + 1, v.sx);
-      const yA = this.rowY(Math.min(S.r0, T.r0), frozen, v.sy);
-      const yB = this.rowY(Math.max(S.r1, T.r1) + 1, frozen, v.sy);
+      const yA = this.rowY(Math.min(S.r0, T.r0), v.sy);
+      const yB = this.rowY(Math.max(S.r1, T.r1) + 1, v.sy);
       ctx.setLineDash([4, 3]);
       ctx.strokeStyle = t.hdrText;
       ctx.lineWidth = 1.5;
@@ -663,16 +720,21 @@ export class Grid {
   }
 
   /** Bottom-right corner of the selection, where the fill handle sits (null if hidden). */
-  private handlePos(): { x: number; y: number; frozen: boolean } | null {
+  private handlePos(): { x: number; y: number; clip: [number, number, number, number] } | null {
     const s = this.sel;
     if (s.allRows || s.allCols || this.mode !== "nav") return null;
     const R = this.selRect();
-    const frozen = this.freezeTop && R.r1 === 0;
-    const x = this.colX(R.c1 + 1, this.scroller.scrollLeft) - 1;
-    const y = this.rowY(R.r1 + 1, frozen, this.scrollY()) - 1;
-    const minY = frozen ? this.hdrH : this.top;
-    if (x < this.rowHdrW || x > this.W + 4 || y < minY || y > this.H + 4) return null;
-    return { x, y, frozen };
+    const x = this.colX(R.c1 + 1, this.sxOf(R.c1)) - 1;
+    const y = this.rowY(R.r1 + 1, this.syOf(R.r1)) - 1;
+    // The pane the corner is in: frozen or scrolling, horizontally and vertically.
+    const fCol = R.c1 < this.frozenCols;
+    const fRow = R.r1 < this.frozenRows;
+    const x0 = fCol ? this.rowHdrW : this.left;
+    const x1 = fCol ? this.left : this.W;
+    const y0 = fRow ? this.hdrH : this.top;
+    const y1 = fRow ? this.top : this.H;
+    if (x < x0 || x > x1 + 4 || y < y0 || y > y1 + 4) return null;
+    return { x, y, clip: [x0, y0, x1 - x0, y1 - y0] };
   }
 
   private drawFillHandle() {
@@ -682,8 +744,7 @@ export class Grid {
     const z = Math.max(1, this.zoom);
     ctx.save();
     ctx.beginPath();
-    if (p.frozen) ctx.rect(this.rowHdrW, this.hdrH, this.W - this.rowHdrW, this.rowH);
-    else ctx.rect(this.rowHdrW, this.top, this.W - this.rowHdrW, this.H - this.top);
+    ctx.rect(...p.clip);
     ctx.clip();
     const outer = 8 * z;
     const inner = 6 * z;
@@ -700,19 +761,21 @@ export class Grid {
     return !!p && Math.abs(x - p.x) <= r && Math.abs(y - p.y) <= r;
   }
 
-  private drawColHeader(v: View) {
-    const { ctx, theme: t, W } = this;
-    const rw = this.rowHdrW;
+  /** Column letters for the columns of pane `v`. */
+  private drawColHeader(v: Pane) {
+    const { ctx, theme: t } = this;
     const hh = this.hdrH;
     const lw = this.lw;
+    const { x0, x1 } = v;
+    if (x1 <= x0) return;
     ctx.save();
     ctx.beginPath();
-    ctx.rect(rw, 0, W - rw, hh);
+    ctx.rect(x0, 0, x1 - x0, hh);
     ctx.clip();
     ctx.fillStyle = t.hdrBg;
-    ctx.fillRect(rw, 0, W - rw, hh);
+    ctx.fillRect(x0, 0, x1 - x0, hh);
     ctx.fillStyle = t.hdrLine;
-    ctx.fillRect(rw, this.snap(hh) - lw, W - rw, lw);
+    ctx.fillRect(x0, this.snap(hh) - lw, x1 - x0, lw);
     const s = this.sel;
     const R = this.selRect();
     const c1 = s.allCols ? Infinity : R.c1;
@@ -742,11 +805,13 @@ export class Grid {
     ctx.restore();
   }
 
-  private drawRowHeader(v: View, frozen: boolean, y0: number, y1: number, rA: number, rB: number) {
+  /** Row numbers for the rows of pane `v`. */
+  private drawRowHeader(v: Pane) {
     const { ctx, theme: t } = this;
     const rw = this.rowHdrW;
     const rh = this.rowH;
     const lw = this.lw;
+    const { y0, y1, rA, rB } = v;
     if (y1 <= y0) return;
     ctx.save();
     ctx.beginPath();
@@ -763,7 +828,7 @@ export class Grid {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     for (let r = rA; r <= rB; r++) {
-      const y = this.rowY(r, frozen, v.sy);
+      const y = this.rowY(r, v.sy);
       const inSel = r >= R.r0 && r <= r1;
       if (inSel) {
         if (s.allCols) {
@@ -794,11 +859,11 @@ export class Grid {
   private hit(x: number, y: number): Hit {
     const hh = this.hdrH;
     const rw = this.rowHdrW;
-    const c = this.colAt(x - rw + this.scroller.scrollLeft);
+    // Left of / above the freeze lines nothing scrolls.
+    const c = this.colAt(x - rw + (x < this.left ? 0 : this.scroller.scrollLeft));
     let r: number;
     if (y < hh) r = 0;
-    else if (this.freezeTop && y < this.top) r = 0;
-    else r = this.s0 + Math.floor((y - this.top + this.scrollY()) / this.rowH);
+    else r = Math.floor((y - hh + (y < this.top ? 0 : this.scrollY())) / this.rowH);
     r = clamp(r, 0, this.dispRows - 1);
     const kind: HitKind = y < hh ? (x < rw ? "corner" : "col") : x < rw ? "row" : "cell";
     return { kind, r, c };
@@ -807,10 +872,16 @@ export class Grid {
   /** Column whose right border is under the pointer in the header, or -1. */
   private resizeHit(x: number, y: number): number {
     if (y >= this.hdrH || x < this.rowHdrW) return -1;
-    const dataX = x - this.rowHdrW + this.scroller.scrollLeft;
+    const left = this.left;
+    const inFrozen = x < left;
+    const dataX = x - this.rowHdrW + (inFrozen ? 0 : this.scroller.scrollLeft);
     const c = this.colAt(dataX);
     if (this.xs[c + 1] - dataX <= 4) return c;
-    if (dataX - this.xs[c] <= 4 && c > 0) return c - 1;
+    if (!inFrozen && this.frozenCols > 0 && x - left <= 4) return this.frozenCols - 1; // the freeze line
+    if (dataX - this.xs[c] <= 4 && c > 0) {
+      // c's left border, unless it is scrolled under the frozen columns
+      if (inFrozen || this.frozenCols === 0 || x - (dataX - this.xs[c]) > left) return c - 1;
+    }
     return -1;
   }
 
@@ -938,7 +1009,7 @@ export class Grid {
       case "row":
         if (shift) s.fR = h.r;
         else {
-          const c = this.colAt(this.scroller.scrollLeft);
+          const c = this.firstVisibleCol();
           s.ar = s.anR = s.fR = h.r;
           s.ac = s.anC = s.fC = c;
         }
@@ -962,7 +1033,7 @@ export class Grid {
     const { x, y } = this.mouse;
     const s = this.sel;
     const cx = clamp(x, this.rowHdrW, this.W - 1);
-    const cy = clamp(y, this.freezeTop ? this.hdrH : this.top, this.H - 1);
+    const cy = clamp(y, this.hdrH, this.H - 1);
     const h = this.hit(cx, cy);
     if (this.drag === "fill") {
       this.updateFill(h.r, h.c);
@@ -1123,7 +1194,7 @@ export class Grid {
       }
     }
     if (this.drag !== "col") {
-      if (y < (this.freezeTop ? this.hdrH : this.top)) {
+      if (y < this.hdrH) {
         this.setScrollY(this.scrollY() - this.rowH);
         moved = true;
       } else if (y > this.H) {
@@ -1179,19 +1250,23 @@ export class Grid {
   private scrollIntoView(r: number, c: number) {
     this.updateSpacer();
     const rh = this.rowH;
-    if (!(this.freezeTop && r === 0)) {
+    // Frozen rows / columns are always on screen.
+    if (r >= this.frozenRows) {
       const viewH = this.H - this.top;
       const yTop = (r - this.s0) * rh;
       const sy = this.scrollY();
       if (yTop < sy) this.setScrollY(yTop);
       else if (yTop + rh > sy + viewH) this.setScrollY(yTop + rh - viewH);
     }
-    const viewW = this.W - this.rowHdrW;
-    const x0 = this.xs[c];
-    const x1 = this.xs[c + 1];
-    const sx = this.scroller.scrollLeft;
-    if (x0 < sx) this.scroller.scrollLeft = x0;
-    else if (x1 > sx + viewW) this.scroller.scrollLeft = Math.min(x0, x1 - viewW);
+    if (c >= this.frozenCols && c + 1 < this.xs.length) {
+      const base = this.xs[Math.min(this.frozenCols, this.xs.length - 1)];
+      const viewW = this.W - this.left;
+      const x0 = this.xs[c] - base;
+      const x1 = this.xs[c + 1] - base;
+      const sx = this.scroller.scrollLeft;
+      if (x0 < sx) this.scroller.scrollLeft = x0;
+      else if (x1 > sx + viewW) this.scroller.scrollLeft = Math.min(x0, x1 - viewW);
+    }
   }
 
   private moveTo(r: number, c: number, shift: boolean) {
@@ -1440,11 +1515,8 @@ export class Grid {
     const s = this.sel;
     const ed = this.editor;
     const rh = this.rowH;
-    const sx = this.scroller.scrollLeft;
-    const sy = this.scrollY();
-    const frozen = this.freezeTop && s.ar === 0;
-    let x = this.colX(s.ac, sx);
-    let y = this.rowY(s.ar, frozen, sy);
+    let x = this.colX(s.ac, this.sxOf(s.ac));
+    let y = this.rowY(s.ar, this.syOf(s.ar));
     const w = this.colW(s.ac);
     if (this.mode === "nav") {
       // Keep the hidden input on screen so the IME candidate window appears near the cell.

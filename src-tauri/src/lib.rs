@@ -3,7 +3,10 @@ use std::{
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use encoding_rs::{EncoderResult, Encoding, SHIFT_JIS, UTF_16BE, UTF_16LE};
@@ -15,8 +18,10 @@ use tauri::{
 
 #[cfg(windows)]
 mod assoc;
+#[cfg(windows)]
+mod update;
 
-/// Settings live next to the exe so the app stays portable.
+/// Settings live next to the exe so the app stays portable (see `locate_settings`).
 const SETTINGS_FILE: &str = "csvsse.settings.json";
 const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
 
@@ -56,13 +61,50 @@ fn set_language(lang: String) {
 
 // ---------------------------------------------------------------- settings
 
-fn settings_path() -> Option<PathBuf> {
-    Some(std::env::current_exe().ok()?.parent()?.join(SETTINGS_FILE))
+/// True if files can be created in `dir` (false for e.g. Program Files or a read-only share).
+pub(crate) fn dir_writable(dir: &Path) -> bool {
+    let probe = dir.join(format!(".csvsse-write-test-{}", std::process::id()));
+    match fs::OpenOptions::new().write(true).create_new(true).open(&probe) {
+        Ok(f) => {
+            drop(f);
+            let _ = fs::remove_file(&probe);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+/// Where settings are written, and an older file to read if that one does not exist yet.
+#[derive(Debug, PartialEq)]
+struct SettingsLocation {
+    write: PathBuf,
+    fallback: Option<PathBuf>,
+}
+
+/// Next to the exe when that folder is writable (portable use). Otherwise, e.g. in
+/// Program Files, %APPDATA%\CSVSSE, still reading a settings file next to the exe as defaults.
+fn locate_settings(exe_dir: &Path, writable: bool, appdata: Option<PathBuf>) -> SettingsLocation {
+    let beside = exe_dir.join(SETTINGS_FILE);
+    match appdata {
+        Some(a) if !writable => SettingsLocation { write: a.join("CSVSSE").join(SETTINGS_FILE), fallback: Some(beside) },
+        _ => SettingsLocation { write: beside, fallback: None },
+    }
+}
+
+fn settings_location() -> Option<&'static SettingsLocation> {
+    static LOCATION: OnceLock<Option<SettingsLocation>> = OnceLock::new();
+    LOCATION
+        .get_or_init(|| {
+            let exe = std::env::current_exe().ok()?;
+            let dir = exe.parent()?;
+            Some(locate_settings(dir, dir_writable(dir), std::env::var_os("APPDATA").map(PathBuf::from)))
+        })
+        .as_ref()
 }
 
 fn read_settings() -> Value {
-    settings_path()
-        .and_then(|p| fs::read_to_string(p).ok())
+    settings_location()
+        .and_then(|loc| std::iter::once(&loc.write).chain(&loc.fallback).find_map(|p| fs::read_to_string(p).ok()))
         // Tolerate a BOM in case the file was edited by hand (e.g. Notepad / PowerShell).
         .and_then(|s| serde_json::from_str::<Value>(s.trim_start_matches('\u{feff}')).ok())
         .filter(Value::is_object)
@@ -95,9 +137,12 @@ fn save_settings(window: WebviewWindow, settings: Value) -> Result<(), String> {
         }
         obj.insert("window".into(), geo);
     }
-    let path = settings_path().ok_or_else(|| tr("設定ファイルの場所が分かりません", "Cannot locate the settings file").to_string())?;
-    // A read-only folder (e.g. a network share) just means settings are not remembered.
-    let _ = fs::write(path, serde_json::to_string_pretty(&all).unwrap_or_default());
+    let loc = settings_location().ok_or_else(|| tr("設定ファイルの場所が分かりません", "Cannot locate the settings file").to_string())?;
+    if let Some(dir) = loc.write.parent() {
+        let _ = fs::create_dir_all(dir);
+    }
+    // Best effort: if even this fails, settings are simply not remembered.
+    let _ = fs::write(&loc.write, serde_json::to_string_pretty(&all).unwrap_or_default());
     Ok(())
 }
 
@@ -393,6 +438,67 @@ fn choose_default_app() -> Result<(), String> {
     Err(tr("Windows 専用の機能です", "Windows only").into())
 }
 
+// ---------------------------------------------------------------- updates
+
+#[cfg(windows)]
+async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(f).await.map_err(|e| e.to_string())?
+}
+
+/// Asks GitHub for the latest version. Some(version) when it is newer than this exe.
+#[tauri::command]
+async fn check_update() -> Result<Option<String>, String> {
+    #[cfg(windows)]
+    return blocking(update::check).await;
+    #[cfg(not(windows))]
+    Ok(None)
+}
+
+/// Downloads and verifies the update; emits "update-progress" { done, total }.
+#[tauri::command]
+async fn download_update(window: WebviewWindow) -> Result<(), String> {
+    #[cfg(windows)]
+    return blocking(move || {
+        use tauri::Emitter;
+        let mut last = 0u64;
+        update::download(|done, total| {
+            if done - last >= 128 * 1024 || Some(done) == total {
+                last = done;
+                let _ = window.emit("update-progress", json!({ "done": done, "total": total }));
+            }
+        })
+    })
+    .await;
+    #[cfg(not(windows))]
+    {
+        let _ = window;
+        Err(tr("Windows 専用の機能です", "Windows only").into())
+    }
+}
+
+/// Replaces the exe (asking for admin rights if needed), starts the new one and exits.
+/// Fails with "CANCELLED" when the UAC prompt was declined.
+#[tauri::command]
+async fn install_update(app: tauri::AppHandle, window: WebviewWindow, file: Option<String>) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let hwnd = window.hwnd().map(|h| h.0 as isize).unwrap_or(0);
+        let exe = blocking(move || update::install(hwnd as _)).await?;
+        let mut cmd = std::process::Command::new(exe);
+        if let Some(f) = file {
+            cmd.arg(f);
+        }
+        cmd.spawn().map_err(|e| format!("{}\n{e}", tr("新しいバージョンを起動できませんでした。", "Could not start the new version.")))?;
+        app.exit(0);
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (app, window, file);
+        Err(tr("Windows 専用の機能です", "Windows only").into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -449,6 +555,26 @@ mod tests {
     }
 
     #[test]
+    fn settings_location() {
+        let exe = PathBuf::from(r"C:\Program Files\CSVSSE");
+        let appdata = PathBuf::from(r"C:\Users\u\AppData\Roaming");
+        // Writable (portable): next to the exe.
+        assert_eq!(
+            locate_settings(&exe, true, Some(appdata.clone())),
+            SettingsLocation { write: exe.join(SETTINGS_FILE), fallback: None }
+        );
+        // Not writable: %APPDATA%\CSVSSE, reading the file next to the exe as defaults.
+        assert_eq!(
+            locate_settings(&exe, false, Some(appdata.clone())),
+            SettingsLocation { write: appdata.join("CSVSSE").join(SETTINGS_FILE), fallback: Some(exe.join(SETTINGS_FILE)) }
+        );
+        // No %APPDATA% at all: nothing better than next to the exe.
+        assert_eq!(locate_settings(&exe, false, None), SettingsLocation { write: exe.join(SETTINGS_FILE), fallback: None });
+        // A real folder we can write to.
+        assert!(dir_writable(&std::env::temp_dir()));
+    }
+
+    #[test]
     fn frame_round_trip() {
         let packed = pack(&json!({"path": "C:\\a.csv"}), b"xyz");
         let (h, p) = unpack(&packed).unwrap();
@@ -459,6 +585,14 @@ mod tests {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(windows)]
+    {
+        // Started elevated only to swap the exe during an update: do that and leave.
+        if let Some(code) = update::helper_main() {
+            std::process::exit(code);
+        }
+        update::cleanup_old_files();
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -483,7 +617,10 @@ pub fn run() {
             choose_default_app,
             os_language,
             set_language,
-            byte_length
+            byte_length,
+            check_update,
+            download_update,
+            install_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

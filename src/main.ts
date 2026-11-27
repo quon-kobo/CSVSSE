@@ -10,6 +10,7 @@ import { IN_TAURI, byteLength, fastByteLength, readFile, writeFile } from "./ipc
 import { showAbout, showSettings } from "./about";
 import { L, onLangChange, resolveLang, setLang, type LangPref } from "./i18n";
 import { alertMsg, ask, hideBusy, isModalOpen, showBusy, showMenu, yieldToPaint, type MenuItem } from "./ui";
+import { autoCheck, setupUpdater } from "./update";
 
 const APP = "CSVSSE";
 const SAVE_ENCODINGS = ["UTF-8", "UTF-8 BOM", "Shift_JIS", "UTF-16LE"];
@@ -108,7 +109,7 @@ function updateStatus() {
 function updateButtons() {
   $<HTMLButtonElement>("btn-undo").disabled = !doc.canUndo;
   $<HTMLButtonElement>("btn-redo").disabled = !doc.canRedo;
-  $("btn-freeze").setAttribute("aria-pressed", String(grid.freezeTop));
+  $("btn-freeze").setAttribute("aria-pressed", String(grid.frozenRows > 0 || grid.frozenCols > 0));
 }
 
 let bytesSeq = 0;
@@ -731,8 +732,26 @@ namebox.addEventListener("blur", () => refreshSelection());
 
 // ------------------------------------------------------------------ toolbar & shortcuts
 
+/**
+ * Excel の「ウィンドウ枠の固定」：選択中のセルより上の行と左の列を固定する。
+ * A1 のときは 1 行目だけを固定（見出し行の固定がいちばんよく使われるため）。固定中なら解除。
+ */
 function toggleFreeze() {
-  grid.setFreeze(!grid.freezeTop);
+  grid.commitEdit();
+  const t = L();
+  if (grid.frozenRows || grid.frozenCols) {
+    grid.setFreeze(0, 0);
+    setMessage(t.unfrozen);
+  } else {
+    const { ar, ac } = grid.sel;
+    const [rows, cols] = ar === 0 && ac === 0 ? [1, 0] : [ar, ac];
+    if (grid.setFreeze(rows, cols)) {
+      const parts: string[] = [];
+      if (rows) parts.push(t.frozenRowsDesc(rows));
+      if (cols) parts.push(t.frozenColsDesc(colName(cols - 1)));
+      setMessage(t.frozeDone(parts.join(t.frozenJoin)));
+    } else setMessage(t.freezeTooLarge);
+  }
   updateButtons();
   grid.focus();
 }
@@ -753,6 +772,7 @@ const commands: Record<string, () => void> = {
 // ------------------------------------------------------------------ language
 
 let langPref: LangPref = "auto";
+let updateCheck = true;
 let osLang: string | null = null;
 
 function applyLanguage() {
@@ -774,6 +794,11 @@ async function openSettings() {
     onLanguage: (p) => {
       langPref = p;
       applyLanguage();
+      void persistSettings();
+    },
+    updateCheck,
+    onUpdateCheck: (on) => {
+      updateCheck = on;
       void persistSettings();
     },
   });
@@ -828,13 +853,23 @@ document.addEventListener("contextmenu", (e) => {
 
 async function persistSettings() {
   try {
-    await invoke("save_settings", { settings: { freezeTop: grid.freezeTop, zoom: grid.zoom, language: langPref } });
+    await invoke("save_settings", { settings: { freezeRows: grid.frozenRows, freezeCols: grid.frozenCols, zoom: grid.zoom, language: langPref, updateCheck } });
   } catch {
     /* settings are best-effort */
   }
 }
 
+let startupSettings: Record<string, unknown> = {};
+
 async function initTauri() {
+  setupUpdater({
+    prepare: async () => {
+      if (!(await confirmDiscard())) return false;
+      await persistSettings();
+      return true;
+    },
+    currentFile: () => state.path,
+  });
   const win = getCurrentWindow();
   try {
     await setupTauri();
@@ -852,6 +887,8 @@ async function initTauri() {
   } catch (e) {
     await alertMsg(String(e));
   }
+  // 起動の邪魔をしないよう、少し待ってから新しいバージョンを確認する
+  setTimeout(() => void autoCheck({ ...startupSettings, updateCheck }), 3000);
 }
 
 async function setupTauri() {
@@ -863,7 +900,12 @@ async function setupTauri() {
   }
   try {
     const s = await invoke<Record<string, unknown>>("load_settings");
-    if (typeof s.freezeTop === "boolean") grid.setFreeze(s.freezeTop);
+    startupSettings = s;
+    if (s.updateCheck === false) updateCheck = false;
+    // 0.1.8 までの「1行目を固定」（freezeTop）からも引き継ぐ
+    if (typeof s.freezeRows === "number" || typeof s.freezeCols === "number") {
+      grid.setFreeze(Number(s.freezeRows) || 0, Number(s.freezeCols) || 0, true);
+    } else if (s.freezeTop === true) grid.setFreeze(1, 0, true);
     if (typeof s.zoom === "number") grid.setZoom(s.zoom, true);
     if (s.language === "ja" || s.language === "en" || s.language === "auto") langPref = s.language;
   } catch {
@@ -929,7 +971,7 @@ async function initBrowserPreview() {
   const rows = parseCsv(sample.join("\r\n"), ",");
   doc.load(rows, 6);
   state.path = "C:\\sample\\社員一覧.csv";
-  recentPreview = [state.path, "D:\\GOT\\Recipe\\ARP00001.csv", "C:\\Users\\user\\Documents\\data\\2026\\11月\\売上集計_最終版.csv"];
+  recentPreview = [state.path, "D:\\共有\\在庫\\商品マスタ.csv", "C:\\Users\\user\\Documents\\data\\2026\\11月\\売上集計_最終版.csv"];
   grid.reset();
   refreshAll();
   grid.focus();

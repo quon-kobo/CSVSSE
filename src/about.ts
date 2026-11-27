@@ -8,8 +8,8 @@ import pkg from "../package.json";
 import { L, lang, resolveLang, type LangPref } from "./i18n";
 import { IN_TAURI } from "./ipc";
 import { alertMsg, ask } from "./ui";
+import { checkNow } from "./update";
 
-const REPO = "https://github.com/quon-kobo/CSVSSE";
 /** Product page on the QUON KOBO site: English is the default page, Japanese is under ja/. */
 const SITE = "https://quon-kobo.com/csvsse/";
 const homepage = () => (lang() === "ja" ? `${SITE}ja/index.html` : `${SITE}index.html`);
@@ -68,7 +68,7 @@ export async function showAbout(): Promise<void> {
     "close",
     t.aboutTitle,
   );
-  if (v === "latest") open(`${REPO}/releases/latest`);
+  if (v === "latest") await checkNow();
 }
 
 // ------------------------------------------------------------------ settings
@@ -78,10 +78,14 @@ export interface SettingsOptions {
   osLang: string | null;
   /** Called immediately when the language choice changes. */
   onLanguage(pref: LangPref): void;
+  /** Check for a new version at startup. */
+  updateCheck: boolean;
+  onUpdateCheck(on: boolean): void;
 }
 
 export async function showSettings(opts: SettingsOptions): Promise<void> {
   let pref = opts.pref;
+  let updateCheck = opts.updateCheck;
   let registered = IN_TAURI ? await invoke<boolean>("association_status").catch(() => false) : false;
   const box = el("div", "settings");
 
@@ -129,8 +133,6 @@ export async function showSettings(opts: SettingsOptions): Promise<void> {
       el("div", registered ? "assoc-state on" : "assoc-state", registered ? t.assocOn : t.assocOff),
     );
     head.append(img, txt);
-    const steps = el("ol", "assoc-steps");
-    steps.append(el("li", "", t.assocStep1), el("li", "", t.assocStep2), el("li", "", t.assocStep3));
     const note = el("p", "assoc-note", t.assocNote);
     const actions = el("div", "set-actions");
     const button = (text: string, primary: boolean, fn: () => Promise<void>) => {
@@ -166,9 +168,27 @@ export async function showSettings(opts: SettingsOptions): Promise<void> {
         }),
       );
     }
-    assocSec.append(head, steps, note, actions);
+    assocSec.append(head, note, actions);
 
-    box.append(langSec, assocSec);
+    // Updates
+    const updSec = el("section", "set-section");
+    updSec.append(el("div", "set-heading", t.updateHeading));
+    const chkLabel = el("label", "set-check");
+    const chk = el("input", "");
+    chk.type = "checkbox";
+    chk.checked = updateCheck;
+    chk.addEventListener("change", () => {
+      updateCheck = chk.checked;
+      opts.onUpdateCheck(updateCheck);
+    });
+    chkLabel.append(chk, t.updateAuto);
+    const updActions = el("div", "set-actions");
+    const nowBtn = el("button", "btn small", t.updateCheckNow);
+    nowBtn.addEventListener("click", () => void checkNow());
+    updActions.append(nowBtn);
+    updSec.append(chkLabel, el("p", "assoc-note", t.updateNote), updActions);
+
+    box.append(langSec, assocSec, updSec);
   };
 
   // The dialog frame (title, Close button) is built by ask(); keep it in the current language too.
